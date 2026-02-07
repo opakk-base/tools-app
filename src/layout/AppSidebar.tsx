@@ -15,6 +15,11 @@ type NavItem = {
 const ToolItems: NavItem[] = [
   {
     icon: <GridIcon />,
+    name: "Dashboard",
+    path: "/",
+  },
+  {
+    icon: <GridIcon />,
     name: "Encode Decode",
     path: "/encode-decode",
   },

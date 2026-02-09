@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { jsPDF } from 'jspdf';
 import type { CertificateLayer, CertificateTemplate } from './types';
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -227,10 +228,62 @@ const CertificateGenerator: React.FC = () => {
   };
 
   const exportAsPdf = async () => {
-    // minimal implementation: export to PNG then open print dialog.
-    // Can be upgraded to a real PDF library later.
-    await exportAsPng();
-    window.print();
+    // Render to a PNG dataURL first, then embed into a real PDF page sized to the canvas.
+    const canvas = document.createElement('canvas');
+    canvas.width = template.width;
+    canvas.height = template.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // draw background
+    if (template.backgroundImage) {
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, template.width, template.height);
+          resolve();
+        };
+        img.src = template.backgroundImage;
+      });
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, template.width, template.height);
+    }
+
+    // draw layers in order
+    for (const layer of template.layers) {
+      ctx.globalAlpha = layer.opacity ?? 1;
+      if (layer.type === 'text') {
+        ctx.fillStyle = layer.color || '#000000';
+        ctx.font = `${layer.fontWeight || 'normal'} ${layer.fontSize || 24}px ${layer.fontFamily || 'Arial'}`;
+        ctx.fillText(layer.content || '', layer.x, layer.y + (layer.fontSize || 24));
+      } else {
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const w = layer.width ?? 100;
+            const h = layer.height ?? 100;
+            ctx.drawImage(img, layer.x, layer.y, w, h);
+            resolve();
+          };
+          img.src = layer.content;
+        });
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    const imgData = canvas.toDataURL('image/png');
+
+    // Use px units so 1px in canvas == 1 unit in PDF. This keeps sizing exact.
+    const orientation = template.width >= template.height ? 'l' : 'p';
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'px',
+      format: [template.width, template.height],
+    });
+
+    pdf.addImage(imgData, 'PNG', 0, 0, template.width, template.height);
+    pdf.save(`certificate-${Date.now()}.pdf`);
   };
 
   return (

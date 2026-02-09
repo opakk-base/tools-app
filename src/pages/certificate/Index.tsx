@@ -11,6 +11,15 @@ const CertificateGenerator: React.FC = () => {
     layers: [],
   });
 
+  const setOrientation = (orientation: 'landscape' | 'portrait') => {
+    // default sizes; can be refined later
+    if (orientation === 'landscape') {
+      setTemplate((prev) => ({ ...prev, width: 800, height: 600 }));
+    } else {
+      setTemplate((prev) => ({ ...prev, width: 600, height: 800 }));
+    }
+  };
+
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [draggingLayer, setDraggingLayer] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -135,7 +144,7 @@ const CertificateGenerator: React.FC = () => {
         <div className="lg:col-span-3">
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   type="file"
                   accept="image/*"
@@ -149,14 +158,14 @@ const CertificateGenerator: React.FC = () => {
                 >
                   Upload Background
                 </label>
-                
+
                 <button
                   onClick={addTextLayer}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   Add Text
                 </button>
-                
+
                 <input
                   type="file"
                   accept="image/*"
@@ -170,6 +179,21 @@ const CertificateGenerator: React.FC = () => {
                 >
                   Add Image Layer
                 </label>
+
+                <button
+                  onClick={() => setOrientation('landscape')}
+                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                  title="Landscape"
+                >
+                  Landscape
+                </button>
+                <button
+                  onClick={() => setOrientation('portrait')}
+                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                  title="Portrait"
+                >
+                  Portrait
+                </button>
               </div>
               
               <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -254,9 +278,19 @@ const CertificateGenerator: React.FC = () => {
                     className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
                   />
                 </div>
-                
+
                 {selectedLayerData.type === 'text' && (
                   <>
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Text</label>
+                      <input
+                        type="text"
+                        value={selectedLayerData.content}
+                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'content', e.target.value || '')}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Font Size</label>
                       <input

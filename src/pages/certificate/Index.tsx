@@ -1,6 +1,17 @@
 import React, { useState, useRef } from 'react';
 import type { CertificateLayer, CertificateTemplate } from './types';
 
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
 const CertificateGenerator: React.FC = () => {
   const [template, setTemplate] = useState<CertificateTemplate>({
     id: '1',
@@ -160,6 +171,68 @@ const CertificateGenerator: React.FC = () => {
 
   const selectedLayerData = template.layers.find(layer => layer.id === selectedLayer);
 
+  const exportAsPng = async () => {
+    if (!canvasRef.current) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = template.width;
+    canvas.height = template.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // draw background
+    if (template.backgroundImage) {
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, template.width, template.height);
+          resolve();
+        };
+        img.src = template.backgroundImage;
+      });
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, template.width, template.height);
+    }
+
+    // draw layers in order
+    for (const layer of template.layers) {
+      ctx.globalAlpha = layer.opacity ?? 1;
+      if (layer.type === 'text') {
+        ctx.fillStyle = layer.color || '#000000';
+        ctx.font = `${layer.fontWeight || 'normal'} ${layer.fontSize || 24}px ${layer.fontFamily || 'Arial'}`;
+        ctx.fillText(layer.content || '', layer.x, layer.y + (layer.fontSize || 24));
+      } else {
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const w = layer.width ?? 100;
+            const h = layer.height ?? 100;
+            ctx.drawImage(img, layer.x, layer.y, w, h);
+            resolve();
+          };
+          img.src = layer.content;
+        });
+      }
+    }
+
+    ctx.globalAlpha = 1;
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) return;
+
+    downloadBlob(blob, `certificate-${Date.now()}.png`);
+  };
+
+  const exportAsPdf = async () => {
+    // minimal implementation: export to PNG then open print dialog.
+    // Can be upgraded to a real PDF library later.
+    await exportAsPng();
+    window.print();
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -244,9 +317,21 @@ const CertificateGenerator: React.FC = () => {
                 </div>
               </div>
               
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                Export Certificate
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportAsPng}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Export PNG
+                </button>
+                <button
+                  onClick={exportAsPdf}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  title="(basic) exports PNG then opens print dialog"
+                >
+                  Export PDF
+                </button>
+              </div>
             </div>
 
             <div

@@ -149,40 +149,40 @@ export default function EncodeDecode() {
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 p-4 md:p-8 font-sans">
+    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white/90 p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <header className="mb-8 text-center">
           <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-200">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
             Secure Payload Decoder
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-2">
+          <p className="text-gray-500 dark:text-gray-400 mt-2">
             Client-side implementation of Go's{" "}
-            <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded text-sm">
+            <code className="bg-gray-200 dark:bg-gray-800 px-1 rounded text-sm">
               aes-256-gcm
             </code>
           </p>
         </header>
 
         {/* Secret Key Input (Global) */}
-        <div className="bg-white dark:bg-slate-700 rounded-xl shadow-sm border border-slate-200 p-6 mb-6 dark:border-slate-600">
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 p-6 mb-6 dark:border-gray-800">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-2">
             <Key className="w-4 h-4 text-indigo-500 dark:text-indigo-200" />
             Shared Secret Key (32 Bytes)
           </label>
-          <div className="relative dark:bg-slate-700">
+          <div className="relative dark:bg-gray-900">
             <input
               type={showKey ? "text" : "password"}
               value={secretKey}
               onChange={(e) => setSecretKey(e.target.value)}
-              className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
+              className="w-full pl-4 pr-12 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
             />
             <button
               onClick={() => setShowKey(!showKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-200 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-200 transition-colors"
             >
               {showKey ? (
                 <EyeOff className="w-5 h-5" />
@@ -191,7 +191,7 @@ export default function EncodeDecode() {
               )}
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-2 dark:text-slate-200">
+          <p className="text-xs text-gray-400 mt-2 dark:text-gray-200">
             Must match the backend key exactly. Current length:{" "}
             <span
               className={
@@ -207,14 +207,14 @@ export default function EncodeDecode() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
-          <div className="flex border-b border-slate-100 dark:border-slate-600">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <div className="flex border-b border-gray-100 dark:border-gray-800">
             <button
               onClick={() => setActiveTab("decrypt")}
               className={`flex-1 py-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                 activeTab === "decrypt"
-                  ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600 dark:bg-indigo-600 dark:text-indigo-200"
-                  : "text-slate-500 dark:text-slate-200 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200"
+                  : "text-gray-500 dark:text-gray-200 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/50"
               }`}
             >
               <Unlock className="w-4 h-4" />
@@ -224,8 +224,8 @@ export default function EncodeDecode() {
               onClick={() => setActiveTab("encrypt")}
               className={`flex-1 py-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
                 activeTab === "encrypt"
-                  ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600 dark:bg-indigo-600 dark:text-indigo-200"
-                  : "text-slate-500 dark:text-slate-200 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  ? "bg-indigo-50 text-indigo-700 border-b-2 border-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200"
+                  : "text-gray-500 dark:text-gray-200 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/50"
               }`}
             >
               <Lock className="w-4 h-4" />
@@ -238,14 +238,14 @@ export default function EncodeDecode() {
               // --- DECRYPT VIEW ---
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     Encrypted Base64 String
                   </label>
                   <textarea
                     value={encryptedInput}
                     onChange={(e) => setEncryptedInput(e.target.value)}
                     placeholder="Paste the base64 string from your API response here..."
-                    className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-y"
+                    className="w-full h-32 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-y"
                   />
                 </div>
 
@@ -258,7 +258,7 @@ export default function EncodeDecode() {
                 </button>
 
                 {decryptError && (
-                  <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-start gap-3">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg border border-red-200 dark:border-red-900 flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 dark:text-red-200" />
                     <div className="text-sm">{decryptError}</div>
                   </div>
@@ -271,18 +271,18 @@ export default function EncodeDecode() {
                         <CheckCircle2 className="w-4 h-4" />
                         Decrypted Successfully
                       </h3>
-                      <span className="text-xs text-slate-400 dark:text-slate-200">
+                      <span className="text-xs text-gray-400 dark:text-gray-200">
                         JSON Object
                       </span>
                     </div>
-                    <div className="bg-slate-900 dark:bg-slate-700 rounded-lg p-4 overflow-x-auto relative group">
+                    <div className="bg-gray-900 dark:bg-gray-800 rounded-lg p-4 overflow-x-auto relative group">
                       <button
                         onClick={() =>
                           copyToClipboard(
                             JSON.stringify(decryptedResult, null, 2)
                           )
                         }
-                        className="absolute top-3 right-3 p-2 bg-slate-800 dark:bg-slate-700 text-slate-400 dark:text-slate-200 rounded hover:text-white hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all"
+                        className="absolute top-3 right-3 p-2 bg-gray-800 dark:bg-gray-700 text-gray-400 dark:text-gray-200 rounded hover:text-white hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all"
                         title="Copy JSON"
                       >
                         <Copy className="w-4 h-4" />
@@ -297,51 +297,51 @@ export default function EncodeDecode() {
             ) : (
               // --- ENCRYPT VIEW (SIMULATOR) ---
               <div className="space-y-6">
-                <div className="bg-amber-50 dark:bg-amber-700 border border-amber-200 dark:border-amber-600 rounded-lg p-4 text-sm text-amber-800 dark:text-amber-200 mb-4">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900 rounded-lg p-4 text-sm text-amber-800 dark:text-amber-200 mb-4">
                   <strong>Simulator Mode:</strong> Use this to generate strings
                   that look exactly like what your Go backend would produce.
                   Copy the result into the "Decrypt" tab to test the cycle.
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     Raw JSON Data (To be hidden)
                   </label>
                   <textarea
                     value={jsonInput}
                     onChange={(e) => setJsonInput(e.target.value)}
-                    className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-y"
+                    className="w-full h-32 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs resize-y"
                   />
                 </div>
 
                 <button
                   onClick={encryptData}
-                  className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium shadow-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 text-white rounded-lg font-medium shadow-lg transition-all flex items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4" />
                   Encrypt Data
                 </button>
 
                 {encryptError && (
-                  <div className="p-4 bg-red-50 dark:bg-red-700 text-red-700 dark:text-red-200 rounded-lg border border-red-200 dark:border-red-600 text-sm">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg border border-red-200 dark:border-red-900 text-sm">
                     {encryptError}
                   </div>
                 )}
 
                 {generatedCiphertext && (
                   <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                       Generated Ciphertext (Base64)
                     </label>
                     <div className="relative group">
                       <textarea
                         readOnly
                         value={generatedCiphertext}
-                        className="w-full h-24 p-4 pr-12 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg font-mono text-xs text-slate-600 dark:text-slate-200 outline-none resize-none"
+                        className="w-full h-24 p-4 pr-12 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg font-mono text-xs text-gray-600 dark:text-gray-200 outline-none resize-none"
                       />
                       <button
                         onClick={() => copyToClipboard(generatedCiphertext)}
-                        className="absolute top-2 right-2 p-2 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-200 rounded-md shadow-sm border border-slate-200 dark:border-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition-all"
+                        className="absolute top-2 right-2 p-2 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-200 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 hover:text-indigo-600 hover:border-indigo-300 transition-all"
                         title="Copy to clipboard"
                       >
                         <Copy className="w-4 h-4" />

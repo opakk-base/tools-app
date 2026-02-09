@@ -20,6 +20,12 @@ const CertificateGenerator: React.FC = () => {
     }
   };
 
+  const setCanvasSize = (width: number, height: number) => {
+    const safeW = Number.isFinite(width) ? Math.max(1, Math.min(4000, width)) : 800;
+    const safeH = Number.isFinite(height) ? Math.max(1, Math.min(4000, height)) : 600;
+    setTemplate((prev) => ({ ...prev, width: safeW, height: safeH }));
+  };
+
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [draggingLayer, setDraggingLayer] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -144,7 +150,7 @@ const CertificateGenerator: React.FC = () => {
         <div className="lg:col-span-3">
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 items-center">
                 <input
                   type="file"
                   accept="image/*"
@@ -194,6 +200,27 @@ const CertificateGenerator: React.FC = () => {
                 >
                   Portrait
                 </button>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Size
+                  </span>
+                  <input
+                    type="number"
+                    value={template.width}
+                    onChange={(e) => setCanvasSize(parseInt(e.target.value || '0'), template.height)}
+                    className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                    title="Width"
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">x</span>
+                  <input
+                    type="number"
+                    value={template.height}
+                    onChange={(e) => setCanvasSize(template.width, parseInt(e.target.value || '0'))}
+                    className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                    title="Height"
+                  />
+                </div>
               </div>
               
               <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">

@@ -43,6 +43,11 @@ const CertificateGenerator: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
   const deleteLayer = (id: string) => {
     setTemplate((prev) => ({
       ...prev,
@@ -145,12 +150,15 @@ const CertificateGenerator: React.FC = () => {
 
     setDraggingLayer(layerId);
     setSelectedLayer(layerId);
-    
+
     if (canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
+      const localX = (e.clientX - rect.left - pan.x) / zoom;
+      const localY = (e.clientY - rect.top - pan.y) / zoom;
+
       setDragOffset({
-        x: e.clientX - rect.left - layer.x,
-        y: e.clientY - rect.top - layer.y
+        x: localX - layer.x,
+        y: localY - layer.y
       });
     }
   };
@@ -158,16 +166,27 @@ const CertificateGenerator: React.FC = () => {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (draggingLayer && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
-      const newX = e.clientX - rect.left - dragOffset.x;
-      const newY = e.clientY - rect.top - dragOffset.y;
+      const localX = (e.clientX - rect.left - pan.x) / zoom;
+      const localY = (e.clientY - rect.top - pan.y) / zoom;
+
+      const newX = localX - dragOffset.x;
+      const newY = localY - dragOffset.y;
 
       updateLayerProperty(draggingLayer, 'x', Math.max(0, newX));
       updateLayerProperty(draggingLayer, 'y', Math.max(0, newY));
+    }
+
+    if (isPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+      setPanStart({ x: e.clientX, y: e.clientY });
     }
   };
 
   const handleMouseUp = () => {
     setDraggingLayer(null);
+    setIsPanning(false);
   };
 
   const selectedLayerData = template.layers.find(layer => layer.id === selectedLayer);
@@ -380,61 +399,131 @@ const CertificateGenerator: React.FC = () => {
                 <button
                   onClick={exportAsPdf}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  title="(basic) exports PNG then opens print dialog"
+                  title="Exports a PDF page sized exactly to the canvas"
                 >
                   Export PDF
                 </button>
+
+                <div className="ml-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.max(0.2, +(z / 1.1).toFixed(2)))}
+                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                    title="Zoom out"
+                  >
+                    -
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 w-16 text-center">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.min(3, +(z * 1.1).toFixed(2)))}
+                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                    title="Zoom in"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPan({ x: 0, y: 0 });
+                      setZoom(1);
+                    }}
+                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                    title="Reset view"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
             </div>
 
             <div
-              ref={canvasRef}
-              className="relative border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
-              style={{ width: template.width, height: template.height, margin: '0 auto' }}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              className="relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 overflow-hidden"
+              style={{ height: 520 }}
             >
-              {template.backgroundImage && (
-                <img
-                  src={template.backgroundImage}
-                  alt="Background"
-                  className="absolute top-0 left-0 w-full h-full object-cover"
-                />
-              )}
-              
-              {template.layers.map((layer) => (
+              {/* Zoom & Pan viewport */}
+              <div
+                ref={canvasRef}
+                className="absolute inset-0 cursor-grab"
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onMouseDown={(e) => {
+                  // Pan with middle mouse, or hold Space + left click
+                  const wantsPan = e.button === 1 || (e.button === 0 && e.shiftKey);
+                  if (!wantsPan) return;
+                  e.preventDefault();
+                  setIsPanning(true);
+                  setPanStart({ x: e.clientX, y: e.clientY });
+                }}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  const delta = e.deltaY;
+                  const factor = delta > 0 ? 0.9 : 1.1;
+                  setZoom((prev) => Math.max(0.2, Math.min(3, prev * factor)));
+                }}
+              >
                 <div
-                  key={layer.id}
-                  className={`absolute cursor-move border ${selectedLayer === layer.id ? 'border-blue-500 ring-2 ring-blue-300' : 'border-transparent'} ${layer.opacity !== undefined ? `opacity-${Math.round(layer.opacity * 100)}` : ''}`}
+                  className="relative border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
                   style={{
-                    left: `${layer.x}px`,
-                    top: `${layer.y}px`,
-                    width: layer.type === 'image' && layer.width ? `${layer.width}px` : 'auto',
-                    height: layer.type === 'image' && layer.height ? `${layer.height}px` : 'auto',
+                    width: template.width,
+                    height: template.height,
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: 'top left',
+                    margin: '0 auto',
                   }}
-                  onMouseDown={(e) => handleMouseDown(e, layer.id)}
                 >
-                  {layer.type === 'text' ? (
-                    <div
-                      style={{
-                        fontSize: `${layer.fontSize}px`,
-                        fontFamily: layer.fontFamily,
-                        fontWeight: layer.fontWeight,
-                        color: layer.color,
-                      }}
-                    >
-                      {layer.content}
-                    </div>
-                  ) : (
+                  {template.backgroundImage && (
                     <img
-                      src={layer.content}
-                      alt="Layer"
-                      className="w-full h-full object-contain"
+                      src={template.backgroundImage}
+                      alt="Background"
+                      className="absolute top-0 left-0 w-full h-full object-cover"
                     />
                   )}
+
+                  {template.layers.map((layer) => (
+                    <div
+                      key={layer.id}
+                      className={`absolute cursor-move border ${selectedLayer === layer.id ? 'border-blue-500 ring-2 ring-blue-300' : 'border-transparent'}`}
+                      style={{
+                        left: `${layer.x}px`,
+                        top: `${layer.y}px`,
+                        width:
+                          layer.type === 'image' && layer.width
+                            ? `${layer.width}px`
+                            : 'auto',
+                        height:
+                          layer.type === 'image' && layer.height
+                            ? `${layer.height}px`
+                            : 'auto',
+                        opacity: layer.opacity ?? 1,
+                      }}
+                      onMouseDown={(e) => handleMouseDown(e, layer.id)}
+                    >
+                      {layer.type === 'text' ? (
+                        <div
+                          style={{
+                            fontSize: `${layer.fontSize}px`,
+                            fontFamily: layer.fontFamily,
+                            fontWeight: layer.fontWeight,
+                            color: layer.color,
+                          }}
+                        >
+                          {layer.content}
+                        </div>
+                      ) : (
+                        <img
+                          src={layer.content}
+                          alt="Layer"
+                          className="w-full h-full object-contain"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         </div>

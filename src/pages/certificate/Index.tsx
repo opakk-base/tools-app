@@ -31,6 +31,27 @@ const CertificateGenerator: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const deleteLayer = (id: string) => {
+    setTemplate((prev) => ({
+      ...prev,
+      layers: prev.layers.filter((l) => l.id !== id),
+    }));
+    setSelectedLayer((prev) => (prev === id ? null : prev));
+  };
+
+  const moveLayer = (id: string, direction: "up" | "down") => {
+    setTemplate((prev) => {
+      const idx = prev.layers.findIndex((l) => l.id === id);
+      if (idx < 0) return prev;
+      const nextIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (nextIdx < 0 || nextIdx >= prev.layers.length) return prev;
+      const layers = [...prev.layers];
+      const [item] = layers.splice(idx, 1);
+      layers.splice(nextIdx, 0, item);
+      return { ...prev, layers };
+    });
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -282,8 +303,80 @@ const CertificateGenerator: React.FC = () => {
 
         <div className="lg:col-span-1">
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+            <h2 className="font-semibold text-gray-900 dark:text-white/90 mb-4">Layers</h2>
+
+            {/* Layer List */}
+            <div className="mb-6 space-y-2">
+              {template.layers.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  No layers yet. Add Text or Image Layer.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {template.layers
+                    .map((layer, index) => ({ layer, index }))
+                    .slice()
+                    .reverse()
+                    .map(({ layer, index }) => (
+                      <li
+                        key={layer.id}
+                        className={`rounded-lg border px-3 py-2 text-sm flex items-center gap-2 cursor-pointer \
+${
+  selectedLayer === layer.id
+    ? "border-brand-300 bg-brand-50 dark:border-gray-700 dark:bg-white/[0.06]"
+    : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+}`}
+                        onClick={() => setSelectedLayer(layer.id)}
+                        title={`Layer ${template.layers.length - index}`}
+                      >
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {layer.type === "text" ? "T" : "IMG"}
+                        </span>
+                        <span className="flex-1 truncate text-gray-900 dark:text-white/90">
+                          {layer.type === "text" ? layer.content : "Image"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveLayer(layer.id, "up");
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.06]"
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveLayer(layer.id, "down");
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.06]"
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteLayer(layer.id);
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-900/20"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+
             <h2 className="font-semibold text-gray-900 dark:text-white/90 mb-4">Properties</h2>
-            
             {selectedLayerData ? (
               <div className="space-y-4">
                 <div>

@@ -659,6 +659,30 @@ ${
                     </div>
                   </>
                 )}
+
+                {selectedLayerData.type === 'image' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Width</label>
+                      <input
+                        type="number"
+                        value={selectedLayerData.width}
+                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'width', parseInt(e.target.value || '100'))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Height</label>
+                      <input
+                        type="number"
+                        value={selectedLayerData.height}
+                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'height', parseInt(e.target.value || '100'))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
+                      />
+                    </div>
+                  </>
+                )}
                 
                 <div>
                   <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Opacity</label>

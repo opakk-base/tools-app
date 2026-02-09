@@ -23,6 +23,11 @@ const ToolItems: NavItem[] = [
     name: "Encode Decode",
     path: "/encode-decode",
   },
+  {
+    icon: <GridIcon />,
+    name: "Certificate Generator",
+    path: "/certificate",
+  },
 ];
 
 const AppSidebar: React.FC = () => {

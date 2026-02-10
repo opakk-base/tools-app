@@ -189,8 +189,6 @@ const CertificateGenerator: React.FC = () => {
     setIsPanning(false);
   };
 
-  const selectedLayerData = template.layers.find(layer => layer.id === selectedLayer);
-
   const exportAsPng = async () => {
     if (!canvasRef.current) return;
 
@@ -305,6 +303,8 @@ const CertificateGenerator: React.FC = () => {
     pdf.save(`certificate-${Date.now()}.pdf`);
   };
 
+  const selectedLayerData = template.layers.find(layer => layer.id === selectedLayer);
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -315,214 +315,212 @@ const CertificateGenerator: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex flex-wrap gap-2 items-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  id="bg-upload"
-                />
-                <label
-                  htmlFor="bg-upload"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer"
-                >
-                  Upload Background
-                </label>
-
-                <button
-                  onClick={addTextLayer}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Add Text
-                </button>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={addImageLayer}
-                  className="hidden"
-                  id="image-layer-upload"
-                />
-                <label
-                  htmlFor="image-layer-upload"
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer"
-                >
-                  Add Image Layer
-                </label>
-
-                <button
-                  onClick={() => setOrientation('landscape')}
-                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                  title="Landscape"
-                >
-                  Landscape
-                </button>
-                <button
-                  onClick={() => setOrientation('portrait')}
-                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                  title="Portrait"
-                >
-                  Portrait
-                </button>
-
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Size
-                  </span>
-                  <input
-                    type="number"
-                    value={template.width}
-                    onChange={(e) => setCanvasSize(parseInt(e.target.value || '0'), template.height)}
-                    className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                    title="Width"
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400">x</span>
-                  <input
-                    type="number"
-                    value={template.height}
-                    onChange={(e) => setCanvasSize(template.width, parseInt(e.target.value || '0'))}
-                    className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                    title="Height"
-                  />
-                </div>
-              </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="bg-upload"
+              />
+              <label
+                htmlFor="bg-upload"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer"
+              >
+                Upload Background
+              </label>
               
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={exportAsPng}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Export PNG
-                </button>
-                <button
-                  onClick={exportAsPdf}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  title="Exports a PDF page sized exactly to the canvas"
-                >
-                  Export PDF
-                </button>
+              <button
+                onClick={addTextLayer}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Add Text
+              </button>
+              
+              <input
+                type="file"
+                accept="image/*"
+                onChange={addImageLayer}
+                className="hidden"
+                id="image-layer-upload"
+              />
+              <label
+                htmlFor="image-layer-upload"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer"
+              >
+                Add Image Layer
+              </label>
 
-                <div className="ml-4 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setZoom((z) => Math.max(0.2, +(z / 1.1).toFixed(2)))}
-                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                    title="Zoom out"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 w-16 text-center">
-                    {Math.round(zoom * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setZoom((z) => Math.min(3, +(z * 1.1).toFixed(2)))}
-                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                    title="Zoom in"
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPan({ x: 0, y: 0 });
-                      setZoom(1);
-                    }}
-                    className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                    title="Reset view"
-                  >
-                    Reset
-                  </button>
-                </div>
+              <button
+                onClick={() => setOrientation('landscape')}
+                className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                title="Landscape"
+              >
+                Landscape
+              </button>
+              <button
+                onClick={() => setOrientation('portrait')}
+                className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                title="Portrait"
+              >
+                Portrait
+              </button>
+
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Size
+                </span>
+                <input
+                  type="number"
+                  value={template.width}
+                  onChange={(e) => setCanvasSize(parseInt(e.target.value || '0'), template.height)}
+                  className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  title="Width"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">x</span>
+                <input
+                  type="number"
+                  value={template.height}
+                  onChange={(e) => setCanvasSize(template.width, parseInt(e.target.value || '0'))}
+                  className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  title="Height"
+                />
               </div>
             </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportAsPng}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Export PNG
+              </button>
+              <button
+                onClick={exportAsPdf}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                title="Exports a PDF page sized exactly to the canvas"
+              >
+                Export PDF
+              </button>
 
+              <div className="ml-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.2, +(z / 1.1).toFixed(2)))}
+                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                  title="Zoom out"
+                >
+                  -
+                </button>
+                <span className="text-xs text-gray-500 dark:text-gray-400 w-16 text-center">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(3, +(z * 1.1).toFixed(2)))}
+                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                  title="Zoom in"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPan({ x: 0, y: 0 });
+                    setZoom(1);
+                  }}
+                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                  title="Reset view"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 overflow-hidden"
+            style={{ height: 520 }}
+          >
+            {/* Zoom & Pan viewport */}
             <div
-              className="relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 overflow-hidden"
-              style={{ height: 520 }}
+              ref={canvasRef}
+              className="absolute inset-0 cursor-grab"
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onMouseDown={(e) => {
+                // Pan with middle mouse, or hold Shift + left click
+                const wantsPan = e.button === 1 || (e.button === 0 && e.shiftKey);
+                if (!wantsPan) return;
+                e.preventDefault();
+                setIsPanning(true);
+                setPanStart({ x: e.clientX, y: e.clientY });
+              }}
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY;
+                const factor = delta > 0 ? 0.9 : 1.1;
+                setZoom((prev) => Math.max(0.2, Math.min(3, prev * factor)));
+              }}
             >
-              {/* Zoom & Pan viewport */}
               <div
-                ref={canvasRef}
-                className="absolute inset-0 cursor-grab"
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                onMouseDown={(e) => {
-                  // Pan with middle mouse, or hold Space + left click
-                  const wantsPan = e.button === 1 || (e.button === 0 && e.shiftKey);
-                  if (!wantsPan) return;
-                  e.preventDefault();
-                  setIsPanning(true);
-                  setPanStart({ x: e.clientX, y: e.clientY });
-                }}
-                onWheel={(e) => {
-                  e.preventDefault();
-                  const delta = e.deltaY;
-                  const factor = delta > 0 ? 0.9 : 1.1;
-                  setZoom((prev) => Math.max(0.2, Math.min(3, prev * factor)));
+                className="relative border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
+                style={{
+                  width: template.width,
+                  height: template.height,
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  transformOrigin: 'top left',
+                  margin: '0 auto',
                 }}
               >
-                <div
-                  className="relative border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
-                  style={{
-                    width: template.width,
-                    height: template.height,
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                    transformOrigin: 'top left',
-                    margin: '0 auto',
-                  }}
-                >
-                  {template.backgroundImage && (
-                    <img
-                      src={template.backgroundImage}
-                      alt="Background"
-                      className="absolute top-0 left-0 w-full h-full object-cover"
-                    />
-                  )}
-
-                  {template.layers.map((layer) => (
-                    <div
-                      key={layer.id}
-                      className={`absolute cursor-move border ${selectedLayer === layer.id ? 'border-blue-500 ring-2 ring-blue-300' : 'border-transparent'}`}
-                      style={{
-                        left: `${layer.x}px`,
-                        top: `${layer.y}px`,
-                        width:
-                          layer.type === 'image' && layer.width
-                            ? `${layer.width}px`
-                            : 'auto',
-                        height:
-                          layer.type === 'image' && layer.height
-                            ? `${layer.height}px`
-                            : 'auto',
-                        opacity: layer.opacity ?? 1,
-                      }}
-                      onMouseDown={(e) => handleMouseDown(e, layer.id)}
-                    >
-                      {layer.type === 'text' ? (
-                        <div
-                          style={{
-                            fontSize: `${layer.fontSize}px`,
-                            fontFamily: layer.fontFamily,
-                            fontWeight: layer.fontWeight,
-                            color: layer.color,
-                          }}
-                        >
-                          {layer.content}
-                        </div>
-                      ) : (
-                        <img
-                          src={layer.content}
-                          alt="Layer"
-                          className="w-full h-full object-contain"
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                {template.backgroundImage && (
+                  <img
+                    src={template.backgroundImage}
+                    alt="Background"
+                    className="absolute top-0 left-0 w-full h-full object-cover"
+                  />
+                )}
+                
+                {template.layers.map((layer) => (
+                  <div
+                    key={layer.id}
+                    className={`absolute cursor-move border ${selectedLayer === layer.id ? 'border-blue-500 ring-2 ring-blue-300' : 'border-transparent'}`}
+                    style={{
+                      left: `${layer.x}px`,
+                      top: `${layer.y}px`,
+                      width:
+                        layer.type === 'image' && layer.width
+                          ? `${layer.width}px`
+                          : 'auto',
+                      height:
+                        layer.type === 'image' && layer.height
+                          ? `${layer.height}px`
+                          : 'auto',
+                      opacity: layer.opacity ?? 1,
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, layer.id)}
+                  >
+                    {layer.type === 'text' ? (
+                      <div
+                        style={{
+                          fontSize: `${layer.fontSize}px`,
+                          fontFamily: layer.fontFamily,
+                          fontWeight: layer.fontWeight,
+                          color: layer.color,
+                        }}
+                      >
+                        {layer.content}
+                      </div>
+                    ) : (
+                      <img
+                        src={layer.content}
+                        alt="Layer"
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

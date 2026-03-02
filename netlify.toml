@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NODE_ENV = "development"
+  NPM_CONFIG_PRODUCTION = "false"
   NPM_FLAGS = "--no-audit --no-fund --include=dev"
 
 [context.production]

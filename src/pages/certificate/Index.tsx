@@ -1,711 +1,433 @@
-import React, { useState, useRef } from 'react';
-import { jsPDF } from 'jspdf';
-import type { CertificateLayer, CertificateTemplate } from './types';
+import { useMemo, useRef, useState } from "react";
+import { Download, ImagePlus, Layers, Trash2, Type } from "lucide-react";
 
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+type LayerType = "text" | "image";
+
+type BaseLayer = {
+  id: string;
+  type: LayerType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
 };
 
-const CertificateGenerator: React.FC = () => {
-  const [template, setTemplate] = useState<CertificateTemplate>({
-    id: '1',
-    name: 'Certificate Template',
-    backgroundImage: '',
-    width: 800,
-    height: 600,
-    layers: [],
-  });
+type TextLayer = BaseLayer & {
+  type: "text";
+  text: string;
+  fontSize: number;
+  color: string;
+  fontWeight: number;
+};
 
-  const setOrientation = (orientation: 'landscape' | 'portrait') => {
-    // default sizes; can be refined later
-    if (orientation === 'landscape') {
-      setTemplate((prev) => ({ ...prev, width: 800, height: 600 }));
-    } else {
-      setTemplate((prev) => ({ ...prev, width: 600, height: 800 }));
-    }
+type ImageLayer = BaseLayer & {
+  type: "image";
+  src: string;
+};
+
+type Layer = TextLayer | ImageLayer;
+
+type Orientation = "landscape" | "portrait";
+
+const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+export default function GenerateCertificate() {
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+
+  const [orientation, setOrientation] = useState<Orientation>("landscape");
+  const [canvasWidth, setCanvasWidth] = useState(1200);
+  const [canvasHeight, setCanvasHeight] = useState(800);
+
+  const [layers, setLayers] = useState<Layer[]>([
+    {
+      id: makeId(),
+      type: "text",
+      text: "CERTIFICATE OF ACHIEVEMENT",
+      x: 240,
+      y: 120,
+      width: 720,
+      height: 90,
+      zIndex: 1,
+      fontSize: 46,
+      color: "#0f172a",
+      fontWeight: 700,
+    },
+  ]);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+
+  const selectedLayer = useMemo(
+    () => layers.find((layer) => layer.id === selectedLayerId) || null,
+    [layers, selectedLayerId]
+  );
+
+  const sortedLayers = useMemo(
+    () => [...layers].sort((a, b) => a.zIndex - b.zIndex),
+    [layers]
+  );
+
+  const clampedSize = (value: number, min = 20) => Math.max(min, value);
+
+  const bringToFront = (id: string) => {
+    const maxZ = layers.length ? Math.max(...layers.map((l) => l.zIndex)) : 1;
+    updateLayer(id, { zIndex: maxZ + 1 });
   };
 
-  const setCanvasSize = (width: number, height: number) => {
-    const safeW = Number.isFinite(width) ? Math.max(1, Math.min(4000, width)) : 800;
-    const safeH = Number.isFinite(height) ? Math.max(1, Math.min(4000, height)) : 600;
-    setTemplate((prev) => ({ ...prev, width: safeW, height: safeH }));
+  const sendToBack = (id: string) => {
+    const minZ = layers.length ? Math.min(...layers.map((l) => l.zIndex)) : 1;
+    updateLayer(id, { zIndex: minZ - 1 });
   };
 
-  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
-  const [draggingLayer, setDraggingLayer] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const canvasRef = useRef<HTMLDivElement>(null);
-
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
-  const deleteLayer = (id: string) => {
-    setTemplate((prev) => ({
-      ...prev,
-      layers: prev.layers.filter((l) => l.id !== id),
-    }));
-    setSelectedLayer((prev) => (prev === id ? null : prev));
+  const removeLayer = (id: string) => {
+    setLayers((prev) => prev.filter((l) => l.id !== id));
+    if (selectedLayerId === id) setSelectedLayerId(null);
   };
 
-  const moveLayer = (id: string, direction: "up" | "down") => {
-    setTemplate((prev) => {
-      const idx = prev.layers.findIndex((l) => l.id === id);
-      if (idx < 0) return prev;
-      const nextIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (nextIdx < 0 || nextIdx >= prev.layers.length) return prev;
-      const layers = [...prev.layers];
-      const [item] = layers.splice(idx, 1);
-      layers.splice(nextIdx, 0, item);
-      return { ...prev, layers };
-    });
+  const exportPng = async () => {
+    if (!boardRef.current) return;
+    const { toPng } = await import("html-to-image");
+    const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `certificate-${Date.now()}.png`;
+    a.click();
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setTemplate(prev => ({
-            ...prev,
-            backgroundImage: event.target!.result as string || ''
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const addTextLayer = () => {
-    const newLayer: CertificateLayer = {
-      id: `layer-${Date.now()}`,
-      type: 'text',
-      content: 'New Text',
-      x: 100,
-      y: 100,
-      fontSize: 24,
-      fontFamily: 'Arial',
-      fontWeight: 'normal',
-      color: '#000000',
-      opacity: 1,
-    };
-    
-    setTemplate(prev => ({
-      ...prev,
-      layers: [...prev.layers, newLayer]
-    }));
-    setSelectedLayer(newLayer.id);
-  };
-
-  const addImageLayer = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const newLayer: CertificateLayer = {
-            id: `layer-${Date.now()}`,
-            type: 'image',
-            content: event.target!.result as string || '',
-            x: 100,
-            y: 100,
-            width: 100,
-            height: 100,
-            opacity: 1,
-          };
-          
-          setTemplate(prev => ({
-            ...prev,
-            layers: [...prev.layers, newLayer]
-          }));
-          setSelectedLayer(newLayer.id);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const updateLayerProperty = (id: string, property: keyof CertificateLayer, value: string | number | boolean) => {
-    setTemplate(prev => ({
-      ...prev,
-      layers: prev.layers.map(layer => 
-        layer.id === id ? { ...layer, [property]: value } : layer
-      )
-    }));
-  };
-
-  const handleMouseDown = (e: React.MouseEvent, layerId: string) => {
-    e.preventDefault();
-    const layer = template.layers.find(l => l.id === layerId);
-    if (!layer) return;
-
-    setDraggingLayer(layerId);
-    setSelectedLayer(layerId);
-
-    if (canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const localX = (e.clientX - rect.left - pan.x) / zoom;
-      const localY = (e.clientY - rect.top - pan.y) / zoom;
-
-      setDragOffset({
-        x: localX - layer.x,
-        y: localY - layer.y
-      });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggingLayer && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const localX = (e.clientX - rect.left - pan.x) / zoom;
-      const localY = (e.clientY - rect.top - pan.y) / zoom;
-
-      const newX = localX - dragOffset.x;
-      const newY = localY - dragOffset.y;
-
-      updateLayerProperty(draggingLayer, 'x', Math.max(0, newX));
-      updateLayerProperty(draggingLayer, 'y', Math.max(0, newY));
-    }
-
-    if (isPanning) {
-      const dx = e.clientX - panStart.x;
-      const dy = e.clientY - panStart.y;
-      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-      setPanStart({ x: e.clientX, y: e.clientY });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setDraggingLayer(null);
-    setIsPanning(false);
-  };
-
-  const exportAsPng = async () => {
-    if (!canvasRef.current) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = template.width;
-    canvas.height = template.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // draw background
-    if (template.backgroundImage) {
-      await new Promise<void>((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, template.width, template.height);
-          resolve();
-        };
-        img.src = template.backgroundImage;
-      });
-    } else {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, template.width, template.height);
-    }
-
-    // draw layers in order
-    for (const layer of template.layers) {
-      ctx.globalAlpha = layer.opacity ?? 1;
-      if (layer.type === 'text') {
-        ctx.fillStyle = layer.color || '#000000';
-        ctx.font = `${layer.fontWeight || 'normal'} ${layer.fontSize || 24}px ${layer.fontFamily || 'Arial'}`;
-        ctx.fillText(layer.content || '', layer.x, layer.y + (layer.fontSize || 24));
-      } else {
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const w = layer.width ?? 100;
-            const h = layer.height ?? 100;
-            ctx.drawImage(img, layer.x, layer.y, w, h);
-            resolve();
-          };
-          img.src = layer.content;
-        });
-      }
-    }
-
-    ctx.globalAlpha = 1;
-
-    const blob: Blob | null = await new Promise((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/png')
-    );
-    if (!blob) return;
-
-    downloadBlob(blob, `certificate-${Date.now()}.png`);
-  };
-
-  const exportAsPdf = async () => {
-    // Render to a PNG dataURL first, then embed into a real PDF page sized to the canvas.
-    const canvas = document.createElement('canvas');
-    canvas.width = template.width;
-    canvas.height = template.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // draw background
-    if (template.backgroundImage) {
-      await new Promise<void>((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, template.width, template.height);
-          resolve();
-        };
-        img.src = template.backgroundImage;
-      });
-    } else {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, template.width, template.height);
-    }
-
-    // draw layers in order
-    for (const layer of template.layers) {
-      ctx.globalAlpha = layer.opacity ?? 1;
-      if (layer.type === 'text') {
-        ctx.fillStyle = layer.color || '#000000';
-        ctx.font = `${layer.fontWeight || 'normal'} ${layer.fontSize || 24}px ${layer.fontFamily || 'Arial'}`;
-        ctx.fillText(layer.content || '', layer.x, layer.y + (layer.fontSize || 24));
-      } else {
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const w = layer.width ?? 100;
-            const h = layer.height ?? 100;
-            ctx.drawImage(img, layer.x, layer.y, w, h);
-            resolve();
-          };
-          img.src = layer.content;
-        });
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    const imgData = canvas.toDataURL('image/png');
-
-    // Use px units so 1px in canvas == 1 unit in PDF. This keeps sizing exact.
-    const orientation = template.width >= template.height ? 'l' : 'p';
+  const exportPdf = async () => {
+    if (!boardRef.current) return;
+    const [{ toPng }, { jsPDF }] = await Promise.all([
+      import("html-to-image"),
+      import("jspdf"),
+    ]);
+    const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
     const pdf = new jsPDF({
-      orientation,
-      unit: 'px',
-      format: [template.width, template.height],
+      orientation: canvasWidth >= canvasHeight ? "landscape" : "portrait",
+      unit: "px",
+      format: [canvasWidth, canvasHeight],
     });
-
-    pdf.addImage(imgData, 'PNG', 0, 0, template.width, template.height);
+    pdf.addImage(dataUrl, "PNG", 0, 0, canvasWidth, canvasHeight);
     pdf.save(`certificate-${Date.now()}.pdf`);
   };
 
-  const selectedLayerData = template.layers.find(layer => layer.id === selectedLayer);
+  const updateLayer = (id: string, patch: Partial<Layer>) => {
+    setLayers((prev) => prev.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as Layer) : layer)));
+  };
+
+  const addTextLayer = () => {
+    const zIndex = layers.length ? Math.max(...layers.map((l) => l.zIndex)) + 1 : 1;
+    const id = makeId();
+    setLayers((prev) => [
+      ...prev,
+      {
+        id,
+        type: "text",
+        text: "Text baru",
+        x: 80,
+        y: 80,
+        width: 260,
+        height: 70,
+        zIndex,
+        fontSize: 28,
+        color: "#111827",
+        fontWeight: 600,
+      },
+    ]);
+    setSelectedLayerId(id);
+  };
+
+  const addImageLayer = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const zIndex = layers.length ? Math.max(...layers.map((l) => l.zIndex)) + 1 : 1;
+      const id = makeId();
+      setLayers((prev) => [
+        ...prev,
+        {
+          id,
+          type: "image",
+          src: String(reader.result || ""),
+          x: 140,
+          y: 180,
+          width: 260,
+          height: 200,
+          zIndex,
+        },
+      ]);
+      setSelectedLayerId(id);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onStartDrag = (e: React.MouseEvent, id: string) => {
+    const board = boardRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    const layer = layers.find((l) => l.id === id);
+    if (!layer) return;
+
+    dragRef.current = {
+      id,
+      offsetX: e.clientX - rect.left - layer.x,
+      offsetY: e.clientY - rect.top - layer.y,
+    };
+    setSelectedLayerId(id);
+  };
+
+  const onBoardMouseMove = (e: React.MouseEvent) => {
+    const board = boardRef.current;
+    if (!board || !dragRef.current) return;
+    const rect = board.getBoundingClientRect();
+
+    const newX = e.clientX - rect.left - dragRef.current.offsetX;
+    const newY = e.clientY - rect.top - dragRef.current.offsetY;
+
+    updateLayer(dragRef.current.id, {
+      x: Math.max(0, Math.min(newX, canvasWidth - 20)),
+      y: Math.max(0, Math.min(newY, canvasHeight - 20)),
+    });
+  };
+
+  const onBoardMouseUp = () => {
+    dragRef.current = null;
+  };
+
+  const onResizeHandleDown = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const board = boardRef.current;
+    if (!board) return;
+
+    const layer = layers.find((l) => l.id === id);
+    if (!layer) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = layer.width;
+    const startHeight = layer.height;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      updateLayer(id, {
+        width: clampedSize(startWidth + dx),
+        height: clampedSize(startHeight + dy),
+      });
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const setPreset = (nextOrientation: Orientation) => {
+    setOrientation(nextOrientation);
+    if (nextOrientation === "landscape") {
+      setCanvasWidth(1200);
+      setCanvasHeight(800);
+    } else {
+      setCanvasWidth(800);
+      setCanvasHeight(1200);
+    }
+  };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white/90">Certificate Generator</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">Create custom certificates with text and image layers</p>
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Generate Certificate</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Canvas custom size, orientation, layer text/image, drag-drop, dan resize.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-            <div className="flex flex-wrap gap-2 items-center">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                id="bg-upload"
-              />
-              <label
-                htmlFor="bg-upload"
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer"
-              >
-                Upload Background
-              </label>
-              
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-1 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-white/90">Canvas</h2>
+            <div className="mt-2 flex gap-2">
               <button
-                onClick={addTextLayer}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Add Text
-              </button>
-              
-              <input
-                type="file"
-                accept="image/*"
-                onChange={addImageLayer}
-                className="hidden"
-                id="image-layer-upload"
-              />
-              <label
-                htmlFor="image-layer-upload"
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer"
-              >
-                Add Image Layer
-              </label>
-
-              <button
-                onClick={() => setOrientation('landscape')}
-                className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                title="Landscape"
+                onClick={() => setPreset("landscape")}
+                className={`rounded-lg px-3 py-2 text-xs ${orientation === "landscape" ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800"}`}
               >
                 Landscape
               </button>
               <button
-                onClick={() => setOrientation('portrait')}
-                className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                title="Portrait"
+                onClick={() => setPreset("portrait")}
+                className={`rounded-lg px-3 py-2 text-xs ${orientation === "portrait" ? "bg-brand-500 text-white" : "bg-gray-100 dark:bg-gray-800"}`}
               >
                 Portrait
               </button>
-
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Size
-                </span>
-                <input
-                  type="number"
-                  value={template.width}
-                  onChange={(e) => setCanvasSize(parseInt(e.target.value || '0'), template.height)}
-                  className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                  title="Width"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">x</span>
-                <input
-                  type="number"
-                  value={template.height}
-                  onChange={(e) => setCanvasSize(template.width, parseInt(e.target.value || '0'))}
-                  className="w-20 px-2 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                  title="Height"
-                />
-              </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={exportAsPng}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Export PNG
-              </button>
-              <button
-                onClick={exportAsPdf}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                title="Exports a PDF page sized exactly to the canvas"
-              >
-                Export PDF
-              </button>
-
-              <div className="ml-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.max(0.2, +(z / 1.1).toFixed(2)))}
-                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                  title="Zoom out"
-                >
-                  -
-                </button>
-                <span className="text-xs text-gray-500 dark:text-gray-400 w-16 text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.min(3, +(z * 1.1).toFixed(2)))}
-                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                  title="Zoom in"
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPan({ x: 0, y: 0 });
-                    setZoom(1);
-                  }}
-                  className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
-                  title="Reset view"
-                >
-                  Reset
-                </button>
-              </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                value={canvasWidth}
+                onChange={(e) => setCanvasWidth(clampedSize(Number(e.target.value), 200))}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                placeholder="Width"
+              />
+              <input
+                type="number"
+                value={canvasHeight}
+                onChange={(e) => setCanvasHeight(clampedSize(Number(e.target.value), 200))}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                placeholder="Height"
+              />
             </div>
           </div>
 
-          <div
-            className="relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 overflow-hidden"
-            style={{ height: 520 }}
-          >
-            {/* Zoom & Pan viewport */}
-            <div
-              ref={canvasRef}
-              className="absolute inset-0 cursor-grab"
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onMouseDown={(e) => {
-                // Pan with middle mouse, or hold Shift + left click
-                const wantsPan = e.button === 1 || (e.button === 0 && e.shiftKey);
-                if (!wantsPan) return;
-                e.preventDefault();
-                setIsPanning(true);
-                setPanStart({ x: e.clientX, y: e.clientY });
-              }}
-              onWheel={(e) => {
-                e.preventDefault();
-                const delta = e.deltaY;
-                const factor = delta > 0 ? 0.9 : 1.1;
-                setZoom((prev) => Math.max(0.2, Math.min(3, prev * factor)));
-              }}
-            >
-              <div
-                className="relative border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
-                style={{
-                  width: template.width,
-                  height: template.height,
-                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                  transformOrigin: 'top left',
-                  margin: '0 auto',
+          <div className="space-y-2">
+            <button onClick={addTextLayer} className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white">
+              <Type size={16} /> Tambah Text Layer
+            </button>
+            <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900">
+              <ImagePlus size={16} /> Tambah Gambar Layer
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) addImageLayer(file);
                 }}
-              >
-                {template.backgroundImage && (
-                  <img
-                    src={template.backgroundImage}
-                    alt="Background"
-                    className="absolute top-0 left-0 w-full h-full object-cover"
-                  />
-                )}
-                
-                {template.layers.map((layer) => (
-                  <div
-                    key={layer.id}
-                    className={`absolute cursor-move border ${selectedLayer === layer.id ? 'border-blue-500 ring-2 ring-blue-300' : 'border-transparent'}`}
-                    style={{
-                      left: `${layer.x}px`,
-                      top: `${layer.y}px`,
-                      width:
-                        layer.type === 'image' && layer.width
-                          ? `${layer.width}px`
-                          : 'auto',
-                      height:
-                        layer.type === 'image' && layer.height
-                          ? `${layer.height}px`
-                          : 'auto',
-                      opacity: layer.opacity ?? 1,
-                    }}
-                    onMouseDown={(e) => handleMouseDown(e, layer.id)}
-                  >
-                    {layer.type === 'text' ? (
-                      <div
-                        style={{
-                          fontSize: `${layer.fontSize}px`,
-                          fontFamily: layer.fontFamily,
-                          fontWeight: layer.fontWeight,
-                          color: layer.color,
-                        }}
-                      >
-                        {layer.content}
-                      </div>
-                    ) : (
-                      <img
-                        src={layer.content}
-                        alt="Layer"
-                        className="w-full h-full object-contain"
-                      />
-                    )}
-                  </div>
-                ))}
+              />
+            </label>
+            <button onClick={exportPng} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white">
+              <Download size={16} /> Export PNG
+            </button>
+            <button onClick={exportPdf} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+              <Download size={16} /> Export PDF
+            </button>
+          </div>
+
+          {selectedLayer && (
+            <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">Layer Properties</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  value={Math.round(selectedLayer.x)}
+                  onChange={(e) => updateLayer(selectedLayer.id, { x: Number(e.target.value) })}
+                  className="rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                />
+                <input
+                  type="number"
+                  value={Math.round(selectedLayer.y)}
+                  onChange={(e) => updateLayer(selectedLayer.id, { y: Number(e.target.value) })}
+                  className="rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                />
               </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button onClick={() => bringToFront(selectedLayer.id)} className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                  <span className="inline-flex items-center gap-1"><Layers size={12} /> Front</span>
+                </button>
+                <button onClick={() => sendToBack(selectedLayer.id)} className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                  Back
+                </button>
+                <button onClick={() => removeLayer(selectedLayer.id)} className="col-span-2 rounded bg-red-600 px-2 py-1 text-xs text-white">
+                  <span className="inline-flex items-center gap-1"><Trash2 size={12} /> Hapus Layer</span>
+                </button>
+              </div>
+
+              {selectedLayer.type === "text" && (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={selectedLayer.text}
+                    onChange={(e) => updateLayer(selectedLayer.id, { text: e.target.value } as Partial<Layer>)}
+                    className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                    rows={3}
+                  />
+                  <input
+                    type="number"
+                    value={selectedLayer.fontSize}
+                    onChange={(e) => updateLayer(selectedLayer.id, { fontSize: clampedSize(Number(e.target.value), 8) } as Partial<Layer>)}
+                    className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">Layers</h3>
+            <div className="space-y-2">
+              {sortedLayers.map((layer) => (
+                <button
+                  key={layer.id}
+                  onClick={() => setSelectedLayerId(layer.id)}
+                  className={`flex w-full items-center justify-between rounded-lg border px-2 py-1 text-xs ${
+                    selectedLayerId === layer.id ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10" : "border-gray-200 dark:border-gray-800"
+                  }`}
+                >
+                  <span className="truncate text-left">{layer.type === "text" ? (layer as TextLayer).text : "Image Layer"}</span>
+                  <span className="rounded bg-gray-100 px-2 py-0.5 dark:bg-gray-800">z:{layer.zIndex}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-            <h2 className="font-semibold text-gray-900 dark:text-white/90 mb-4">Layers</h2>
+        <div className="rounded-2xl border border-gray-200 bg-gray-100 p-4 dark:border-gray-800 dark:bg-black/20 xl:col-span-3 overflow-auto">
+          <div
+            ref={boardRef}
+            className="relative mx-auto border border-dashed border-gray-300 bg-white shadow-xl"
+            style={{ width: canvasWidth, height: canvasHeight }}
+            onMouseMove={onBoardMouseMove}
+            onMouseUp={onBoardMouseUp}
+            onMouseLeave={onBoardMouseUp}
+            onClick={() => setSelectedLayerId(null)}
+          >
+            {sortedLayers.map((layer) => {
+              const isSelected = selectedLayerId === layer.id;
+              return (
+                <div
+                  key={layer.id}
+                  className={`absolute cursor-move select-none ${isSelected ? "ring-2 ring-brand-500" : ""}`}
+                  style={{
+                    left: layer.x,
+                    top: layer.y,
+                    width: layer.width,
+                    height: layer.height,
+                    zIndex: layer.zIndex,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    onStartDrag(e, layer.id);
+                  }}
+                >
+                  {layer.type === "text" ? (
+                    <div
+                      className="h-full w-full whitespace-pre-wrap break-words"
+                      style={{
+                        fontSize: layer.fontSize,
+                        color: layer.color,
+                        fontWeight: layer.fontWeight,
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {layer.text}
+                    </div>
+                  ) : (
+                    <img src={layer.src} alt="layer" className="h-full w-full object-contain" draggable={false} />
+                  )}
 
-            {/* Layer List */}
-            <div className="mb-6 space-y-2">
-              {template.layers.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  No layers yet. Add Text or Image Layer.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {template.layers
-                    .map((layer, index) => ({ layer, index }))
-                    .slice()
-                    .reverse()
-                    .map(({ layer, index }) => (
-                      <li
-                        key={layer.id}
-                        className={`rounded-lg border px-3 py-2 text-sm flex items-center gap-2 cursor-pointer \
-${
-  selectedLayer === layer.id
-    ? "border-brand-300 bg-brand-50 dark:border-gray-700 dark:bg-white/[0.06]"
-    : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
-}`}
-                        onClick={() => setSelectedLayer(layer.id)}
-                        title={`Layer ${template.layers.length - index}`}
-                      >
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {layer.type === "text" ? "T" : "IMG"}
-                        </span>
-                        <span className="flex-1 truncate text-gray-900 dark:text-white/90">
-                          {layer.type === "text" ? layer.content : "Image"}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              moveLayer(layer.id, "up");
-                            }}
-                            className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.06]"
-                            title="Move up"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              moveLayer(layer.id, "down");
-                            }}
-                            className="px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.06]"
-                            title="Move down"
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteLayer(layer.id);
-                            }}
-                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-900/20"
-                            title="Delete"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-
-            <h2 className="font-semibold text-gray-900 dark:text-white/90 mb-4">Properties</h2>
-            {selectedLayerData ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">X Position</label>
-                  <input
-                    type="number"
-                    value={selectedLayerData.x}
-                    onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'x', parseInt(e.target.value || '0'))}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                  />
+                  {isSelected && (
+                    <button
+                      onMouseDown={(e) => onResizeHandleDown(e, layer.id)}
+                      className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border border-white bg-brand-500"
+                    >
+                      <span className="sr-only">resize</span>
+                    </button>
+                  )}
                 </div>
-                
-                <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Y Position</label>
-                  <input
-                    type="number"
-                    value={selectedLayerData.y}
-                    onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'y', parseInt(e.target.value || '0'))}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                  />
-                </div>
-
-                {selectedLayerData.type === 'text' && (
-                  <>
-                    <div>
-                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Text</label>
-                      <input
-                        type="text"
-                        value={selectedLayerData.content}
-                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'content', e.target.value || '')}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Font Size</label>
-                      <input
-                        type="number"
-                        value={selectedLayerData.fontSize}
-                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'fontSize', parseInt(e.target.value || '0'))}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Color</label>
-                      <input
-                        type="color"
-                        value={selectedLayerData.color}
-                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'color', e.target.value || '')}
-                        className="w-full p-1 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {selectedLayerData.type === 'image' && (
-                  <>
-                    <div>
-                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Width</label>
-                      <input
-                        type="number"
-                        value={selectedLayerData.width}
-                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'width', parseInt(e.target.value || '100'))}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Height</label>
-                      <input
-                        type="number"
-                        value={selectedLayerData.height}
-                        onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'height', parseInt(e.target.value || '100'))}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800"
-                      />
-                    </div>
-                  </>
-                )}
-                
-                <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-200 mb-1">Opacity</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={selectedLayerData.opacity}
-                    onChange={(e) => selectedLayer && updateLayerProperty(selectedLayer, 'opacity', parseFloat(e.target.value || '1'))}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
-                    {Math.round((selectedLayerData.opacity || 1) * 100)}%
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Select a layer to edit properties</p>
-            )}
+              );
+            })}
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default CertificateGenerator;
+}

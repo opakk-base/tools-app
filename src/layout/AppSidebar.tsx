@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 // Assume these icons are imported from an icon library
-import { ChevronDownIcon, GridIcon, HorizontaLDots } from "../icons";
+import { ChevronDownIcon, HorizontaLDots } from "../icons";
+import { TOOL_APPS } from "../shared/toolApps";
 import { useSidebar } from "../context/SidebarContext";
 
 type NavItem = {
@@ -12,23 +13,11 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const ToolItems: NavItem[] = [
-  {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    path: "/",
-  },
-  {
-    icon: <GridIcon />,
-    name: "Encode Decode",
-    path: "/encode-decode",
-  },
-  {
-    icon: <GridIcon />,
-    name: "Certificate Generator",
-    path: "/certificate",
-  },
-];
+const ToolItems: NavItem[] = TOOL_APPS.map((app) => ({
+  icon: app.icon,
+  name: app.name,
+  path: app.path,
+}));
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();

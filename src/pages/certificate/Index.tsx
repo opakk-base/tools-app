@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { ImagePlus, Type } from "lucide-react";
+import { Download, ImagePlus, Layers, Trash2, Type } from "lucide-react";
+import { toPng } from "html-to-image";
+import { jsPDF } from "jspdf";
 
 type LayerType = "text" | "image";
 
@@ -68,6 +70,42 @@ export default function GenerateCertificate() {
   );
 
   const clampedSize = (value: number, min = 20) => Math.max(min, value);
+
+  const bringToFront = (id: string) => {
+    const maxZ = layers.length ? Math.max(...layers.map((l) => l.zIndex)) : 1;
+    updateLayer(id, { zIndex: maxZ + 1 });
+  };
+
+  const sendToBack = (id: string) => {
+    const minZ = layers.length ? Math.min(...layers.map((l) => l.zIndex)) : 1;
+    updateLayer(id, { zIndex: minZ - 1 });
+  };
+
+  const removeLayer = (id: string) => {
+    setLayers((prev) => prev.filter((l) => l.id !== id));
+    if (selectedLayerId === id) setSelectedLayerId(null);
+  };
+
+  const exportPng = async () => {
+    if (!boardRef.current) return;
+    const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `certificate-${Date.now()}.png`;
+    a.click();
+  };
+
+  const exportPdf = async () => {
+    if (!boardRef.current) return;
+    const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
+    const pdf = new jsPDF({
+      orientation: canvasWidth >= canvasHeight ? "landscape" : "portrait",
+      unit: "px",
+      format: [canvasWidth, canvasHeight],
+    });
+    pdf.addImage(dataUrl, "PNG", 0, 0, canvasWidth, canvasHeight);
+    pdf.save(`certificate-${Date.now()}.pdf`);
+  };
 
   const updateLayer = (id: string, patch: Partial<Layer>) => {
     setLayers((prev) => prev.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as Layer) : layer)));
@@ -254,6 +292,12 @@ export default function GenerateCertificate() {
                 }}
               />
             </label>
+            <button onClick={exportPng} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white">
+              <Download size={16} /> Export PNG
+            </button>
+            <button onClick={exportPdf} className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+              <Download size={16} /> Export PDF
+            </button>
           </div>
 
           {selectedLayer && (
@@ -273,6 +317,18 @@ export default function GenerateCertificate() {
                   className="rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
                 />
               </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button onClick={() => bringToFront(selectedLayer.id)} className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                  <span className="inline-flex items-center gap-1"><Layers size={12} /> Front</span>
+                </button>
+                <button onClick={() => sendToBack(selectedLayer.id)} className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">
+                  Back
+                </button>
+                <button onClick={() => removeLayer(selectedLayer.id)} className="col-span-2 rounded bg-red-600 px-2 py-1 text-xs text-white">
+                  <span className="inline-flex items-center gap-1"><Trash2 size={12} /> Hapus Layer</span>
+                </button>
+              </div>
+
               {selectedLayer.type === "text" && (
                 <div className="mt-2 space-y-2">
                   <textarea

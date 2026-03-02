@@ -4,10 +4,10 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--no-audit --no-fund"
+  NPM_FLAGS = "--no-audit --no-fund --include=dev"
 
 [context.production]
-  command = "npm ci --no-audit --no-fund && npm run build"
+  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
 
 [context.deploy-preview]
-  command = "npm ci --no-audit --no-fund && npm run build"
+  command = "npm ci --include=dev --no-audit --no-fund && npm run build"

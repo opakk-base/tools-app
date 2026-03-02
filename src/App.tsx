@@ -3,6 +3,7 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import AppLayout from "./layout/AppLayout";
 import Home from "./pages/dashboard/Home";
 import EncodeDecode from "./pages/encode/Index";
+import GenerateCertificate from "./pages/certificate/Index";
 
 export default function App() {
   return (
@@ -16,6 +17,10 @@ export default function App() {
 
             {/* Others Page */}
             <Route path="/encode-decode" element={<EncodeDecode />} />
+            <Route
+              path="/generate-certificate"
+              element={<GenerateCertificate />}
+            />
           </Route>
         </Routes>
       </Router>

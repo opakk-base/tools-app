@@ -1,7 +1,5 @@
 import { useMemo, useRef, useState } from "react";
 import { Download, ImagePlus, Layers, Trash2, Type } from "lucide-react";
-import { toPng } from "html-to-image";
-import { jsPDF } from "jspdf";
 
 type LayerType = "text" | "image";
 
@@ -88,6 +86,7 @@ export default function GenerateCertificate() {
 
   const exportPng = async () => {
     if (!boardRef.current) return;
+    const { toPng } = await import("html-to-image");
     const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
     const a = document.createElement("a");
     a.href = dataUrl;
@@ -97,6 +96,10 @@ export default function GenerateCertificate() {
 
   const exportPdf = async () => {
     if (!boardRef.current) return;
+    const [{ toPng }, { jsPDF }] = await Promise.all([
+      import("html-to-image"),
+      import("jspdf"),
+    ]);
     const dataUrl = await toPng(boardRef.current, { cacheBust: true, pixelRatio: 2 });
     const pdf = new jsPDF({
       orientation: canvasWidth >= canvasHeight ? "landscape" : "portrait",

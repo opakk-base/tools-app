@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FileIcon, GridIcon } from "../icons";
+import { FileIcon, GridIcon, UserCircleIcon } from "../icons";
 
 export type ToolApp = {
   name: string;
@@ -20,5 +20,11 @@ export const TOOL_APPS: ToolApp[] = [
     path: "/generate-certificate",
     description: "Generate sertifikat sederhana dari template.",
     icon: <FileIcon />,
+  },
+  {
+    name: "About Me",
+    path: "/about-me",
+    description: "Profil Opakk (redirect ke opakk.id).",
+    icon: <UserCircleIcon />,
   },
 ];

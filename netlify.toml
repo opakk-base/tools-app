@@ -4,10 +4,12 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NODE_ENV = "development"
+  NPM_CONFIG_PRODUCTION = "false"
   NPM_FLAGS = "--no-audit --no-fund --include=dev"
 
 [context.production]
-  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
+  command = "npm config set registry https://registry.npmjs.org/ && npm ci --include=dev --no-audit --no-fund && npm run build"
 
 [context.deploy-preview]
-  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
+  command = "npm config set registry https://registry.npmjs.org/ && npm ci --include=dev --no-audit --no-fund && npm run build"

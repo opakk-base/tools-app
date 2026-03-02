@@ -4,6 +4,7 @@ import AppLayout from "./layout/AppLayout";
 import Home from "./pages/dashboard/Home";
 import EncodeDecode from "./pages/encode/Index";
 import GenerateCertificate from "./pages/certificate/Index";
+import AboutMeRedirect from "./pages/about/Index";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
               path="/generate-certificate"
               element={<GenerateCertificate />}
             />
+            <Route path="/about-me" element={<AboutMeRedirect />} />
           </Route>
         </Routes>
       </Router>

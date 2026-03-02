@@ -9,7 +9,7 @@
   NPM_FLAGS = "--no-audit --no-fund --include=dev"
 
 [context.production]
-  command = "npm install --include=dev --no-audit --no-fund && npm run build"
+  command = "npm config set registry https://registry.npmjs.org/ && npm ci --include=dev --no-audit --no-fund && npm run build"
 
 [context.deploy-preview]
-  command = "npm install --include=dev --no-audit --no-fund && npm run build"
+  command = "npm config set registry https://registry.npmjs.org/ && npm ci --include=dev --no-audit --no-fund && npm run build"

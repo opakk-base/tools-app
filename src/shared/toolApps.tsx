@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FileIcon, GridIcon, UserCircleIcon } from "../icons";
+import { Maximize2 } from "lucide-react";
 
 export type ToolApp = {
   name: string;
@@ -26,5 +27,11 @@ export const TOOL_APPS: ToolApp[] = [
     path: "/about-me",
     description: "Profil Opakk (redirect ke opakk.id).",
     icon: <UserCircleIcon />,
+  },
+  {
+    name: "Image Resizer",
+    path: "/image-resize",
+    description: "Resize, rotate, dan konversi gambar.",
+    icon: <Maximize2 />,
   },
 ];

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FileIcon, GridIcon, UserCircleIcon } from "../icons";
-import { Maximize2, Merge } from "lucide-react";
+import { Maximize2, Merge, Scan } from "lucide-react";
 
 export type ToolApp = {
   name: string;
@@ -39,5 +39,11 @@ export const TOOL_APPS: ToolApp[] = [
     path: "/pdf-merge",
     description: "Merge beberapa file PDF menjadi satu.",
     icon: <Merge />,
+  },
+  {
+    name: "PDF Compress",
+    path: "/pdf-compress",
+    description: "Compress PDF untuk perkecil ukuran file.",
+    icon: <Scan />,
   },
 ];

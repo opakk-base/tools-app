@@ -5,6 +5,7 @@ import Home from "./pages/dashboard/Home";
 import EncodeDecode from "./pages/encode/Index";
 import GenerateCertificate from "./pages/certificate/Index";
 import AboutMeRedirect from "./pages/about/Index";
+import ImageResize from "./pages/image-resize/Index";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
               element={<GenerateCertificate />}
             />
             <Route path="/about-me" element={<AboutMeRedirect />} />
+            <Route path="/image-resize" element={<ImageResize />} />
           </Route>
         </Routes>
       </Router>

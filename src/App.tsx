@@ -6,6 +6,8 @@ import EncodeDecode from "./pages/encode/Index";
 import GenerateCertificate from "./pages/certificate/Index";
 import AboutMeRedirect from "./pages/about/Index";
 import ImageResize from "./pages/image-resize/Index";
+import PDFMerge from "./pages/pdf-merge/Index";
+import PDFCompress from "./pages/pdf-compress/Index";
 
 export default function App() {
   return (
@@ -25,6 +27,8 @@ export default function App() {
             />
             <Route path="/about-me" element={<AboutMeRedirect />} />
             <Route path="/image-resize" element={<ImageResize />} />
+            <Route path="/pdf-merge" element={<PDFMerge />} />
+            <Route path="/pdf-compress" element={<PDFCompress />} />
           </Route>
         </Routes>
       </Router>

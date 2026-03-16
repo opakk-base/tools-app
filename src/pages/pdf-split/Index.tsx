@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef } from "react";
+import { PDFDocument } from "pdf-lib";
+import JSZip from "jszip";
 import {
   Upload,
   Download,
@@ -8,6 +10,7 @@ import {
   Scissors,
   Settings,
   X,
+  FileText,
 } from "lucide-react";
 
 interface SplitRange {
@@ -22,6 +25,7 @@ interface PDFInfo {
   name: string;
   size: number;
   pageCount: number;
+  arrayBuffer: ArrayBuffer;
 }
 
 export default function PDFSplit() {
@@ -30,7 +34,8 @@ export default function PDFSplit() {
     { id: '1', pages: '', description: '' }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [outputUrls, setOutputUrls] = useState<string[]>([]);
+  const [outputZipUrl, setOutputZipUrl] = useState<string | null>(null);
+  const [outputPdfUrls, setOutputPdfUrls] = useState<string[]>([]);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   
@@ -44,20 +49,24 @@ export default function PDFSplit() {
     }
 
     try {
-      await file.arrayBuffer();
-      // Note: For actual page count, we'd need pdfjs
-      // For now, we'll just store the file
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Load PDF to get page count (simplified - no preview for now)
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      
       setPdfFile({
         id: generateId(),
         file,
         name: file.name,
         size: file.size,
-        pageCount: 0, // Will be populated when we implement pdfjs
+        pageCount: pdfDoc.getPageCount(),
+        arrayBuffer,
       });
-      setOutputUrls([]);
+      setOutputZipUrl(null);
+      setOutputPdfUrls([]);
       setError("");
       setSuccess("");
-    } catch (err) {
+    } catch (err: any) {
       setError("Failed to load PDF. Invalid file.");
     }
   }, []);
@@ -99,6 +108,27 @@ export default function PDFSplit() {
     ));
   };
 
+  const parsePageRange = (rangeStr: string): number[] => {
+    const pages: number[] = [];
+    const parts = rangeStr.split(',').map(p => p.trim());
+    
+    for (const part of parts) {
+      if (part.includes('-')) {
+        const [start, end] = part.split('-').map(Number);
+        for (let i = start; i <= end; i++) {
+          pages.push(i);
+        }
+      } else {
+        const pageNum = Number(part);
+        if (!isNaN(pageNum)) {
+          pages.push(pageNum);
+        }
+      }
+    }
+    
+    return pages.filter(p => p >= 1 && p <= (pdfFile?.pageCount || 999));
+  };
+
   const handleSplit = async () => {
     if (!pdfFile || splitRanges.length === 0) {
       setError("Please upload a PDF and specify at least one split range.");
@@ -117,18 +147,59 @@ export default function PDFSplit() {
     setSuccess("");
 
     try {
-      // Note: Actual PDF splitting requires pdf-lib or similar
-      // This is a simplified version for UI demonstration
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // For demo, create dummy download links
-      const dummyUrls = splitRanges.map((range, idx) => {
-        const blob = new Blob([`Split ${idx + 1}: ${range.description || range.pages}`], { type: 'text/plain' });
-        return URL.createObjectURL(blob);
-      });
-      
-      setOutputUrls(dummyUrls);
-      setSuccess(`PDF split into ${splitRanges.length} files successfully!`);
+      const originalPdf = await PDFDocument.load(pdfFile.arrayBuffer);
+      const splitPdfs: { name: string; blob: Blob }[] = [];
+
+      for (const range of splitRanges) {
+        if (!range.pages.trim()) continue;
+
+        const pagesToExtract = parsePageRange(range.pages);
+        if (pagesToExtract.length === 0) continue;
+
+        // Create new PDF with selected pages
+        const newPdfDoc = await PDFDocument.create();
+        const copiedPages = await newPdfDoc.copyPages(
+          originalPdf,
+          pagesToExtract.map(p => p - 1) // Convert to 0-indexed
+        );
+        
+        copiedPages.forEach(page => newPdfDoc.addPage(page));
+        
+        const pdfBytes = await newPdfDoc.save();
+        const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+        
+        const fileName = range.description 
+          ? `${range.description}.pdf`
+          : `split-${splitPdfs.length + 1}.pdf`;
+        
+        splitPdfs.push({ name: fileName, blob });
+      }
+
+      if (splitPdfs.length === 0) {
+        setError("No valid pages to split.");
+        setIsProcessing(false);
+        return;
+      }
+
+      // If only 1 split, download directly as PDF
+      if (splitPdfs.length === 1) {
+        const url = URL.createObjectURL(splitPdfs[0].blob);
+        setOutputPdfUrls([url]);
+        setSuccess(`PDF split successfully! Download your file below.`);
+      } else {
+        // Multiple splits - create ZIP
+        const zip = new JSZip();
+        
+        // Add each PDF to ZIP
+        splitPdfs.forEach(pdf => {
+          zip.file(pdf.name, pdf.blob);
+        });
+        
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipUrl = URL.createObjectURL(zipBlob);
+        setOutputZipUrl(zipUrl);
+        setSuccess(`PDF split into ${splitPdfs.length} files! Download ZIP below.`);
+      }
     } catch (err: any) {
       setError("Failed to split PDF: " + err.message);
     } finally {
@@ -193,7 +264,7 @@ export default function PDFSplit() {
                 <div>
                   <h3 className="font-semibold text-lg">{pdfFile.name}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {formatFileSize(pdfFile.size)}
+                    {formatFileSize(pdfFile.size)} • {pdfFile.pageCount} pages
                   </p>
                 </div>
               </div>
@@ -201,7 +272,8 @@ export default function PDFSplit() {
                 onClick={() => {
                   setPdfFile(null);
                   setSplitRanges([{ id: '1', pages: '', description: '' }]);
-                  setOutputUrls([]);
+                  setOutputZipUrl(null);
+                  setOutputPdfUrls([]);
                   setError("");
                   setSuccess("");
                 }}
@@ -209,6 +281,14 @@ export default function PDFSplit() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Page Count Info */}
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                <FileText className="w-5 h-5" />
+                <span className="font-medium">Total Pages: {pdfFile.pageCount}</span>
+              </div>
             </div>
           </div>
 
@@ -247,7 +327,7 @@ export default function PDFSplit() {
                       className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Use commas for individual pages, hyphens for ranges
+                      Use commas for individual pages, hyphens for ranges. Total: {pdfFile.pageCount} pages
                     </p>
                   </div>
                   
@@ -320,25 +400,49 @@ export default function PDFSplit() {
             )}
           </button>
 
-          {/* Download Links */}
-          {outputUrls.length > 0 && (
+          {/* Download Section - ZIP */}
+          {outputZipUrl && (
             <div className="border rounded-xl p-6 bg-card space-y-3">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <Download className="w-5 h-5" />
-                Download Split Files
+                Download ZIP ({splitRanges.length} files)
               </h3>
-              {splitRanges.map((range, idx) => (
+              <a
+                href={outputZipUrl}
+                download="split-pdfs.zip"
+                className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-brand-500/10 border-brand-500/20"
+              >
+                <div className="flex items-center gap-3">
+                  <FileIcon className="w-5 h-5 text-brand-500" />
+                  <span className="font-medium">split-pdfs.zip</span>
+                </div>
+                <Download className="w-5 h-5 text-brand-500" />
+              </a>
+              <p className="text-sm text-muted-foreground">
+                Contains {splitRanges.length} PDF files
+              </p>
+            </div>
+          )}
+
+          {/* Download Section - Single PDF */}
+          {outputPdfUrls.length > 0 && (
+            <div className="border rounded-xl p-6 bg-card space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Download className="w-5 h-5" />
+                Download PDF
+              </h3>
+              {outputPdfUrls.map((url, idx) => (
                 <a
-                  key={range.id}
-                  href={outputUrls[idx]}
-                  download={`split-${idx + 1}-${range.description || range.pages}.pdf`}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  key={idx}
+                  href={url}
+                  download={`split-${idx + 1}.pdf`}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-brand-500/10 border-brand-500/20"
                 >
                   <div className="flex items-center gap-3">
                     <FileIcon className="w-5 h-5 text-brand-500" />
-                    <span>{range.description || `Split ${idx + 1}`}</span>
+                    <span className="font-medium">split-{idx + 1}.pdf</span>
                   </div>
-                  <Download className="w-5 h-5 text-muted-foreground" />
+                  <Download className="w-5 h-5 text-brand-500" />
                 </a>
               ))}
             </div>
@@ -364,7 +468,7 @@ export default function PDFSplit() {
           </li>
           <li className="flex items-start gap-2">
             <span className="font-bold">4.</span>
-            <span>Click "Split PDF" to create separate PDF files</span>
+            <span>Click "Split PDF" - single split downloads as PDF, multiple as ZIP</span>
           </li>
         </ol>
       </div>

@@ -89,7 +89,7 @@ export default function PDFSplit() {
 
     try {
       const pdfBytes = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
+      await pdfjs.getDocument({ data: pdfBytes }).promise;
 
       for (const range of splitRanges) {
         if (!range.pages.trim()) continue;

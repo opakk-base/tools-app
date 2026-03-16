@@ -13,8 +13,6 @@ import {
   FileText,
 } from "lucide-react";
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdf.js@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
 interface SplitRange {
   id: string;
   pages: string;

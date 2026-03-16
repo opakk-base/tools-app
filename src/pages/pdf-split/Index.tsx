@@ -97,15 +97,8 @@ export default function PDFSplit() {
         const pagesToExtract = parsePageRange(range.pages);
         if (pagesToExtract.length === 0) continue;
 
-        // Create new PDF for this range
-        const newPdfDoc = await pdfjs.PDFDocument.create();
-        
-        for (const pageNum of pagesToExtract) {
-          const page = await pdf.getPage(pageNum);
-          // Note: pdfjs doesn't support creating new PDFs directly
-          // This is a simplified version - in production, use pdf-lib
-        }
-
+        // Note: pdfjs doesn't support creating new PDFs directly
+        // This is a simplified version - in production, use pdf-lib
         // For now, show success message
         alert(`Split created: ${range.description || range.pages} (${pagesToExtract.length} pages)`);
       }

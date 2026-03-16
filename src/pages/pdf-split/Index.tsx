@@ -99,27 +99,6 @@ export default function PDFSplit() {
     ));
   };
 
-  const _parsePageRange = (rangeStr: string): number[] => {
-    const pages: number[] = [];
-    const parts = rangeStr.split(',').map(p => p.trim());
-    
-    for (const part of parts) {
-      if (part.includes('-')) {
-        const [start, end] = part.split('-').map(Number);
-        for (let i = start; i <= end; i++) {
-          pages.push(i);
-        }
-      } else {
-        const pageNum = Number(part);
-        if (!isNaN(pageNum)) {
-          pages.push(pageNum);
-        }
-      }
-    }
-    
-    return pages.filter(p => p >= 1);
-  };
-
   const handleSplit = async () => {
     if (!pdfFile || splitRanges.length === 0) {
       setError("Please upload a PDF and specify at least one split range.");

@@ -277,7 +277,6 @@ export default function PDFSplit() {
               <button
                 onClick={() => {
                   setPdfFile(null);
-                  setPdfPreview(null);
                   setSplitRanges([{ id: '1', pages: '', description: '' }]);
                   setOutputZipUrl(null);
                   setOutputPdfUrls([]);

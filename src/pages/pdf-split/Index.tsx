@@ -13,6 +13,8 @@ import {
   FileText,
 } from "lucide-react";
 
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdf.js@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 interface SplitRange {
   id: string;
   pages: string;
@@ -30,6 +32,7 @@ interface PDFInfo {
 
 export default function PDFSplit() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [splitRanges, setSplitRanges] = useState<SplitRange[]>([
     { id: '1', pages: '', description: '' }
   ]);
@@ -215,6 +218,12 @@ export default function PDFSplit() {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  // Cleanup URLs on unmount
+  useState(() => () => {
+    if (outputZipUrl) URL.revokeObjectURL(outputZipUrl);
+    outputPdfUrls.forEach(url => URL.revokeObjectURL(url));
+  });
+
   return (
     <div className="w-full max-w-5xl mx-auto">
       <div className="mb-8">
@@ -271,6 +280,7 @@ export default function PDFSplit() {
               <button
                 onClick={() => {
                   setPdfFile(null);
+                  setPdfPreview(null);
                   setSplitRanges([{ id: '1', pages: '', description: '' }]);
                   setOutputZipUrl(null);
                   setOutputPdfUrls([]);

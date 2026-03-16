@@ -30,7 +30,6 @@ interface PDFInfo {
 
 export default function PDFSplit() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
-  const [pdfPreview, setPdfPreview] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [splitRanges, setSplitRanges] = useState<SplitRange[]>([
     { id: '1', pages: '', description: '' }
   ]);

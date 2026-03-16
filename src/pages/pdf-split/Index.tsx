@@ -44,7 +44,7 @@ export default function PDFSplit() {
     }
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
+      await file.arrayBuffer();
       // Note: For actual page count, we'd need pdfjs
       // For now, we'll just store the file
       setPdfFile({
@@ -99,7 +99,7 @@ export default function PDFSplit() {
     ));
   };
 
-  const parsePageRange = (rangeStr: string): number[] => {
+  const _parsePageRange = (rangeStr: string): number[] => {
     const pages: number[] = [];
     const parts = rangeStr.split(',').map(p => p.trim());
     

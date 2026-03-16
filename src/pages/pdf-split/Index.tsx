@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from "react";
 import { PDFDocument } from "pdf-lib";
-import { pdfjs } from "react-pdf";
 import JSZip from "jszip";
 import {
   Upload,
@@ -13,8 +12,6 @@ import {
   X,
   FileText,
 } from "lucide-react";
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdf.js@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface SplitRange {
   id: string;
@@ -33,7 +30,6 @@ interface PDFInfo {
 
 export default function PDFSplit() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
-  const [pdfPreview, setPdfPreview] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [splitRanges, setSplitRanges] = useState<SplitRange[]>([
     { id: '1', pages: '', description: '' }
   ]);
@@ -55,17 +51,15 @@ export default function PDFSplit() {
     try {
       const arrayBuffer = await file.arrayBuffer();
       
-      // Load PDF for preview
-      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
+      // Load PDF to get page count (simplified - no preview for now)
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
       
-      setPdfPreview(pdf);
       setPdfFile({
         id: generateId(),
         file,
         name: file.name,
         size: file.size,
-        pageCount: pdf.numPages,
+        pageCount: pdfDoc.getPageCount(),
         arrayBuffer,
       });
       setOutputZipUrl(null);
@@ -172,7 +166,7 @@ export default function PDFSplit() {
         copiedPages.forEach(page => newPdfDoc.addPage(page));
         
         const pdfBytes = await newPdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
         
         const fileName = range.description 
           ? `${range.description}.pdf`
@@ -187,7 +181,7 @@ export default function PDFSplit() {
         return;
       }
 
-      // If only 1 split with 1 page, download directly
+      // If only 1 split, download directly as PDF
       if (splitPdfs.length === 1) {
         const url = URL.createObjectURL(splitPdfs[0].blob);
         setOutputPdfUrls([url]);
@@ -283,7 +277,6 @@ export default function PDFSplit() {
               <button
                 onClick={() => {
                   setPdfFile(null);
-                  setPdfPreview(null);
                   setSplitRanges([{ id: '1', pages: '', description: '' }]);
                   setOutputZipUrl(null);
                   setOutputPdfUrls([]);
@@ -296,24 +289,13 @@ export default function PDFSplit() {
               </button>
             </div>
 
-            {/* PDF Preview */}
-            {pdfPreview && (
-              <div className="mt-4 border rounded-lg overflow-hidden">
-                <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-brand-500" />
-                  <span className="text-sm font-medium">Preview (Page 1 of {pdfPreview.numPages})</span>
-                </div>
-                <div className="p-4 bg-white dark:bg-gray-900">
-                  <pdfjs.PDFPageProxy
-                    pageIndex={0}
-                    pdf={pdfPreview}
-                    scale={1.0}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                </div>
+            {/* Page Count Info */}
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                <FileText className="w-5 h-5" />
+                <span className="font-medium">Total Pages: {pdfFile.pageCount}</span>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Split Ranges */}
@@ -424,7 +406,7 @@ export default function PDFSplit() {
             )}
           </button>
 
-          {/* Download Section */}
+          {/* Download Section - ZIP */}
           {outputZipUrl && (
             <div className="border rounded-xl p-6 bg-card space-y-3">
               <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -448,6 +430,7 @@ export default function PDFSplit() {
             </div>
           )}
 
+          {/* Download Section - Single PDF */}
           {outputPdfUrls.length > 0 && (
             <div className="border rounded-xl p-6 bg-card space-y-3">
               <h3 className="font-semibold text-lg flex items-center gap-2">

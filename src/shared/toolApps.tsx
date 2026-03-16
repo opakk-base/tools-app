@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { FileIcon, GridIcon, UserCircleIcon } from "../icons";
-import { Maximize2, Merge, Scan } from "lucide-react";
+import { Maximize2, Merge, Scan, Scissors } from "lucide-react";
 
 export type ToolApp = {
   name: string;
   path: string;
   description: string;
   icon: ReactNode;
+  category?: string; // For grouping (e.g., "pdf")
 };
 
 export const TOOL_APPS: ToolApp[] = [
@@ -35,10 +36,28 @@ export const TOOL_APPS: ToolApp[] = [
     icon: <Maximize2 />,
   },
   {
+    name: "PDF Tools",
+    path: "#",
+    description: "Kumpulan tools untuk PDF",
+    icon: <FileIcon />,
+    category: "pdf",
+  },
+];
+
+// PDF Tools submenu items
+export const PDF_TOOLS = [
+  {
     name: "PDF Merge",
     path: "/pdf-merge",
     description: "Merge beberapa file PDF menjadi satu.",
     icon: <Merge />,
+  },
+  {
+    name: "PDF Split",
+    path: "/pdf-split",
+    description: "Split PDF menjadi beberapa file.",
+    icon: <Scissors />,
+    new: true,
   },
   {
     name: "PDF Compress",

@@ -9,6 +9,9 @@ import ImageResize from "./pages/image-resize/Index";
 import PDFMerge from "./pages/pdf-merge/Index";
 import PDFCompress from "./pages/pdf-compress/Index";
 import PDFSplit from "./pages/pdf-split/Index";
+import PDFEditor from "./pages/pdf-editor/Index";
+import PDFEmbed from "./pages/pdf-embed/Index";
+import PDFEnhance from "./pages/pdf-enhance/Index";
 
 export default function App() {
   return (
@@ -31,6 +34,9 @@ export default function App() {
             <Route path="/pdf-merge" element={<PDFMerge />} />
             <Route path="/pdf-split" element={<PDFSplit />} />
             <Route path="/pdf-compress" element={<PDFCompress />} />
+            <Route path="/pdf-editor" element={<PDFEditor />} />
+            <Route path="/pdf-embed" element={<PDFEmbed />} />
+            <Route path="/pdf-enhance" element={<PDFEnhance />} />
           </Route>
         </Routes>
       </Router>

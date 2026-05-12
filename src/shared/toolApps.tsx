@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FileIcon, GridIcon, UserCircleIcon } from "../icons";
-import { Maximize2, Merge, Scan, Scissors } from "lucide-react";
+import { Maximize2, Merge, Scan, Scissors, Edit3, FilePlus, Wand2 } from "lucide-react";
 
 export type ToolApp = {
   name: string;
@@ -57,12 +57,32 @@ export const PDF_TOOLS = [
     path: "/pdf-split",
     description: "Split PDF menjadi beberapa file.",
     icon: <Scissors />,
-    new: true,
   },
   {
     name: "PDF Compress",
     path: "/pdf-compress",
     description: "Compress PDF untuk perkecil ukuran file.",
     icon: <Scan />,
+  },
+  {
+    name: "PDF Editor",
+    path: "/pdf-editor",
+    description: "Edit PDF: tambah text, gambar, dan bentuk.",
+    icon: <Edit3 />,
+    new: true,
+  },
+  {
+    name: "PDF Embed",
+    path: "/pdf-embed",
+    description: "Sisipkan halaman dari satu PDF ke PDF lain.",
+    icon: <FilePlus />,
+    new: true,
+  },
+  {
+    name: "PDF Enhance",
+    path: "/pdf-enhance",
+    description: "Tingkatkan kualitas PDF scan dengan filter.",
+    icon: <Wand2 />,
+    new: true,
   },
 ];

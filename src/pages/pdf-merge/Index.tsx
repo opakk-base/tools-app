@@ -25,6 +25,8 @@ export default function PDFMerge() {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -126,6 +128,37 @@ export default function PDFMerge() {
       newFiles.splice(toIndex, 0, moved);
       return newFiles;
     });
+  }, []);
+
+  const handleItemDragStart = useCallback((e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleItemDragEnter = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  }, [draggedIndex]);
+
+  const handleItemDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleItemDrop = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      moveFile(draggedIndex, index);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }, [draggedIndex, moveFile]);
+
+  const handleItemDragEnd = useCallback(() => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   }, []);
 
   const clearAll = useCallback(() => {
@@ -266,7 +299,17 @@ export default function PDFMerge() {
               {pdfFiles.map((pdf, index) => (
                 <div
                   key={pdf.id}
-                  className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group"
+                  draggable
+                  onDragStart={(e) => handleItemDragStart(e, index)}
+                  onDragEnter={(e) => handleItemDragEnter(e, index)}
+                  onDragOver={handleItemDragOver}
+                  onDrop={(e) => handleItemDrop(e, index)}
+                  onDragEnd={handleItemDragEnd}
+                  className={`flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group transition-all ${
+                    draggedIndex === index ? "opacity-50 scale-95" : ""
+                  } ${
+                    dragOverIndex === index ? "ring-2 ring-indigo-500" : ""
+                  }`}
                 >
                   {/* Drag Handle */}
                   <div className="cursor-move text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">

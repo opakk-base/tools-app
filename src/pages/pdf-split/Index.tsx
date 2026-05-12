@@ -1,9 +1,7 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { PDFDocument } from "pdf-lib";
 import JSZip from "jszip";
 import {
-  Upload,
-  Download,
   FileIcon,
   AlertCircle,
   CheckCircle2,
@@ -12,11 +10,16 @@ import {
   X,
   FileText,
 } from "lucide-react";
+import { FileUpload } from "./FileUpload";
+import { SplitRangeInput } from "./SplitRangeInput";
+import { DownloadSection } from "./DownloadSection";
+import { usePdfThumbnails } from "./hooks/usePdfThumbnails";
 
 interface SplitRange {
   id: string;
   pages: string;
   description: string;
+  validationError?: string;
 }
 
 interface PDFInfo {
@@ -30,17 +33,25 @@ interface PDFInfo {
 
 export default function PDFSplit() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
-  const [splitRanges, setSplitRanges] = useState<SplitRange[]>([
-    { id: '1', pages: '', description: '' }
-  ]);
+  const [splitRanges, setSplitRanges] = useState<SplitRange[]>([]);
+  const [selectedRangeId, setSelectedRangeId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState<string>("");
   const [outputZipUrl, setOutputZipUrl] = useState<string | null>(null);
   const [outputPdfUrls, setOutputPdfUrls] = useState<string[]>([]);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
-  
+
+  usePdfThumbnails(
+    pdfFile?.arrayBuffer || null,
+    pdfFile?.pageCount || 0,
+    150
+  );
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const generateId = () => Math.random().toString(36).substring(2, 9);
+
+  const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
   const loadPDF = useCallback(async (file: File) => {
     if (file.type !== "application/pdf") {
@@ -48,26 +59,49 @@ export default function PDFSplit() {
       return;
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File size exceeds 50MB limit. Your file is ${formatFileSize(file.size)}.`);
+      return;
+    }
+
     try {
       const arrayBuffer = await file.arrayBuffer();
       
-      // Load PDF to get page count (simplified - no preview for now)
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pdfDoc = await PDFDocument.load(arrayBuffer, { 
+        ignoreEncryption: true 
+      });
+
+      const pageCount = pdfDoc.getPageCount();
+      
+      const defaultRanges: SplitRange[] = [];
+      for (let i = 1; i <= pageCount; i++) {
+        defaultRanges.push({
+          id: generateId(),
+          pages: i.toString(),
+          description: ""
+        });
+      }
       
       setPdfFile({
         id: generateId(),
         file,
         name: file.name,
         size: file.size,
-        pageCount: pdfDoc.getPageCount(),
+        pageCount,
         arrayBuffer,
       });
+      setSplitRanges(defaultRanges);
+      setSelectedRangeId(defaultRanges[0]?.id || null);
       setOutputZipUrl(null);
       setOutputPdfUrls([]);
       setError("");
       setSuccess("");
     } catch (err: any) {
-      setError("Failed to load PDF. Invalid file.");
+      if (err.message?.includes("encrypted")) {
+        setError("This PDF is password-protected. Please decrypt it first.");
+      } else {
+        setError("Failed to load PDF. The file may be corrupted or invalid.");
+      }
     }
   }, []);
 
@@ -90,15 +124,18 @@ export default function PDFSplit() {
   }, []);
 
   const addSplitRange = () => {
-    setSplitRanges([
-      ...splitRanges,
-      { id: generateId(), pages: '', description: '' }
-    ]);
+    const newRange = { id: generateId(), pages: "", description: "" };
+    setSplitRanges([...splitRanges, newRange]);
+    setSelectedRangeId(newRange.id);
   };
 
   const removeSplitRange = (id: string) => {
     if (splitRanges.length > 1) {
-      setSplitRanges(splitRanges.filter(range => range.id !== id));
+      const newRanges = splitRanges.filter(range => range.id !== id);
+      setSplitRanges(newRanges);
+      if (selectedRangeId === id) {
+        setSelectedRangeId(newRanges[0]?.id || null);
+      }
     }
   };
 
@@ -108,25 +145,77 @@ export default function PDFSplit() {
     ));
   };
 
-  const parsePageRange = (rangeStr: string): number[] => {
+  const parsePageRange = (rangeStr: string): { pages: number[]; invalidPages: number[] } => {
     const pages: number[] = [];
+    const invalidPages: number[] = [];
     const parts = rangeStr.split(',').map(p => p.trim());
     
     for (const part of parts) {
       if (part.includes('-')) {
         const [start, end] = part.split('-').map(Number);
-        for (let i = start; i <= end; i++) {
-          pages.push(i);
+        if (!isNaN(start) && !isNaN(end)) {
+          for (let i = start; i <= end; i++) {
+            if (i >= 1 && i <= (pdfFile?.pageCount || 0)) {
+              pages.push(i);
+            } else {
+              invalidPages.push(i);
+            }
+          }
         }
       } else {
         const pageNum = Number(part);
         if (!isNaN(pageNum)) {
-          pages.push(pageNum);
+          if (pageNum >= 1 && pageNum <= (pdfFile?.pageCount || 0)) {
+            pages.push(pageNum);
+          } else {
+            invalidPages.push(pageNum);
+          }
         }
       }
     }
     
-    return pages.filter(p => p >= 1 && p <= (pdfFile?.pageCount || 999));
+    return { pages: [...new Set(pages)], invalidPages: [...new Set(invalidPages)] };
+  };
+
+  const validateSplitRanges = (): boolean => {
+    const allPages: number[] = [];
+    let hasError = false;
+    
+    const validatedRanges = splitRanges.map(range => {
+      if (!range.pages.trim()) {
+        return { ...range, validationError: undefined };
+      }
+      
+      const { pages, invalidPages } = parsePageRange(range.pages);
+      
+      if (invalidPages.length > 0) {
+        hasError = true;
+        return {
+          ...range,
+          validationError: `Invalid pages: ${invalidPages.join(', ')}. PDF has ${pdfFile?.pageCount} pages.`
+        };
+      }
+      
+      if (pages.length === 0) {
+        hasError = true;
+        return { ...range, validationError: "No valid pages specified." };
+      }
+      
+      const duplicates = pages.filter(p => allPages.includes(p));
+      if (duplicates.length > 0) {
+        hasError = true;
+        return {
+          ...range,
+          validationError: `Pages ${duplicates.join(', ')} already used in another split.`
+        };
+      }
+      
+      allPages.push(...pages);
+      return { ...range, validationError: undefined, pageCount: pages.length };
+    });
+    
+    setSplitRanges(validatedRanges);
+    return !hasError;
   };
 
   const handleSplit = async () => {
@@ -135,32 +224,39 @@ export default function PDFSplit() {
       return;
     }
 
-    // Validate ranges
     const hasEmptyRange = splitRanges.some(r => !r.pages.trim());
     if (hasEmptyRange) {
       setError("Please specify page ranges for all splits.");
       return;
     }
 
+    if (!validateSplitRanges()) {
+      setError("Please fix the validation errors above.");
+      return;
+    }
+
     setIsProcessing(true);
     setError("");
     setSuccess("");
+    setProcessingProgress("Loading PDF...");
 
     try {
       const originalPdf = await PDFDocument.load(pdfFile.arrayBuffer);
       const splitPdfs: { name: string; blob: Blob }[] = [];
 
-      for (const range of splitRanges) {
+      for (let i = 0; i < splitRanges.length; i++) {
+        const range = splitRanges[i];
         if (!range.pages.trim()) continue;
 
-        const pagesToExtract = parsePageRange(range.pages);
+        setProcessingProgress(`Processing split ${i + 1} of ${splitRanges.length}...`);
+
+        const { pages: pagesToExtract } = parsePageRange(range.pages);
         if (pagesToExtract.length === 0) continue;
 
-        // Create new PDF with selected pages
         const newPdfDoc = await PDFDocument.create();
         const copiedPages = await newPdfDoc.copyPages(
           originalPdf,
-          pagesToExtract.map(p => p - 1) // Convert to 0-indexed
+          pagesToExtract.map(p => p - 1)
         );
         
         copiedPages.forEach(page => newPdfDoc.addPage(page));
@@ -178,10 +274,12 @@ export default function PDFSplit() {
       if (splitPdfs.length === 0) {
         setError("No valid pages to split.");
         setIsProcessing(false);
+        setProcessingProgress("");
         return;
       }
 
-      // If only 1 split, download directly as PDF
+      setProcessingProgress("Generating output...");
+
       if (splitPdfs.length === 1) {
         const url = URL.createObjectURL(splitPdfs[0].blob);
         setOutputPdfUrls([url]);
@@ -204,6 +302,7 @@ export default function PDFSplit() {
       setError("Failed to split PDF: " + err.message);
     } finally {
       setIsProcessing(false);
+      setProcessingProgress("");
     }
   };
 
@@ -216,10 +315,12 @@ export default function PDFSplit() {
   };
 
   // Cleanup URLs on unmount
-  useState(() => () => {
-    if (outputZipUrl) URL.revokeObjectURL(outputZipUrl);
-    outputPdfUrls.forEach(url => URL.revokeObjectURL(url));
-  });
+  useEffect(() => {
+    return () => {
+      if (outputZipUrl) URL.revokeObjectURL(outputZipUrl);
+      outputPdfUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [outputZipUrl, outputPdfUrls]);
 
   return (
     <div className="w-full max-w-5xl mx-auto">
@@ -237,27 +338,12 @@ export default function PDFSplit() {
 
       {/* Upload Area */}
       {!pdfFile ? (
-        <div
+        <FileUpload
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-12 text-center cursor-pointer transition-colors hover:border-brand-500 dark:hover:border-brand-400 bg-gray-50 dark:bg-gray-800/50"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-medium mb-2">
-            Drag & drop PDF here, or click to select
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Maximum file size: 50MB
-          </p>
-        </div>
+        />
       ) : (
         <div className="space-y-6">
           {/* File Info Card */}
@@ -277,7 +363,8 @@ export default function PDFSplit() {
               <button
                 onClick={() => {
                   setPdfFile(null);
-                  setSplitRanges([{ id: '1', pages: '', description: '' }]);
+                  setSplitRanges([]);
+                  setSelectedRangeId(null);
                   setOutputZipUrl(null);
                   setOutputPdfUrls([]);
                   setError("");
@@ -307,49 +394,17 @@ export default function PDFSplit() {
             
             <div className="space-y-4">
               {splitRanges.map((range, index) => (
-                <div key={range.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Split #{index + 1}</h4>
-                    {splitRanges.length > 1 && (
-                      <button
-                        onClick={() => removeSplitRange(range.id)}
-                        className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
-                      >
-                        <X className="w-4 h-4" />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Page Range
-                    </label>
-                    <input
-                      type="text"
-                      value={range.pages}
-                      onChange={(e) => updateSplitRange(range.id, 'pages', e.target.value)}
-                      placeholder="e.g., 1-5, 8, 10-15"
-                      className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Use commas for individual pages, hyphens for ranges. Total: {pdfFile.pageCount} pages
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Description (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={range.description}
-                      onChange={(e) => updateSplitRange(range.id, 'description', e.target.value)}
-                      placeholder="e.g., Chapter 1, Introduction"
-                      className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-                </div>
+                <SplitRangeInput
+                  key={range.id}
+                  range={range}
+                  index={index}
+                  totalPages={pdfFile.pageCount}
+                  canRemove={splitRanges.length > 1}
+                  isSelected={selectedRangeId === range.id}
+                  onSelect={setSelectedRangeId}
+                  onUpdate={updateSplitRange}
+                  onRemove={removeSplitRange}
+                />
               ))}
 
               <button
@@ -396,7 +451,7 @@ export default function PDFSplit() {
             {isProcessing ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Processing...
+                {processingProgress || "Processing..."}
               </>
             ) : (
               <>
@@ -406,53 +461,11 @@ export default function PDFSplit() {
             )}
           </button>
 
-          {/* Download Section - ZIP */}
-          {outputZipUrl && (
-            <div className="border rounded-xl p-6 bg-card space-y-3">
-              <h3 className="font-semibold text-lg flex items-center gap-2">
-                <Download className="w-5 h-5" />
-                Download ZIP ({splitRanges.length} files)
-              </h3>
-              <a
-                href={outputZipUrl}
-                download="split-pdfs.zip"
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-brand-500/10 border-brand-500/20"
-              >
-                <div className="flex items-center gap-3">
-                  <FileIcon className="w-5 h-5 text-brand-500" />
-                  <span className="font-medium">split-pdfs.zip</span>
-                </div>
-                <Download className="w-5 h-5 text-brand-500" />
-              </a>
-              <p className="text-sm text-muted-foreground">
-                Contains {splitRanges.length} PDF files
-              </p>
-            </div>
-          )}
-
-          {/* Download Section - Single PDF */}
-          {outputPdfUrls.length > 0 && (
-            <div className="border rounded-xl p-6 bg-card space-y-3">
-              <h3 className="font-semibold text-lg flex items-center gap-2">
-                <Download className="w-5 h-5" />
-                Download PDF
-              </h3>
-              {outputPdfUrls.map((url, idx) => (
-                <a
-                  key={idx}
-                  href={url}
-                  download={`split-${idx + 1}.pdf`}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-brand-500/10 border-brand-500/20"
-                >
-                  <div className="flex items-center gap-3">
-                    <FileIcon className="w-5 h-5 text-brand-500" />
-                    <span className="font-medium">split-{idx + 1}.pdf</span>
-                  </div>
-                  <Download className="w-5 h-5 text-brand-500" />
-                </a>
-              ))}
-            </div>
-          )}
+          <DownloadSection
+            outputZipUrl={outputZipUrl}
+            outputPdfUrls={outputPdfUrls}
+            splitCount={splitRanges.length}
+          />
         </div>
       )}
 

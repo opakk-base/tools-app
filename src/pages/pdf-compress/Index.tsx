@@ -6,7 +6,7 @@ import {
   FileIcon,
   AlertCircle,
   CheckCircle2,
-  Scan,
+  Minimize2,
   Settings,
 } from "lucide-react";
 
@@ -18,7 +18,7 @@ interface PDFInfo {
   pageCount: number;
 }
 
-export default function PDFScan() {
+export default function PDFCompress() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
@@ -26,8 +26,7 @@ export default function PDFScan() {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   
-  // Scanion settings
-  const [compressionLevel, setScanionLevel] = useState<"low" | "medium" | "high">("medium");
+  const [compressionLevel, setCompressionLevel] = useState<"low" | "medium" | "high">("medium");
   const [removeImages, setRemoveImages] = useState(false);
   const [flattenAnnotations, setFlattenAnnotations] = useState(false);
   
@@ -85,7 +84,7 @@ export default function PDFScan() {
       const arrayBuffer = await pdfFile.file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       
-      // Scanion based on level
+      // Compression based on level
       // Note: pdf-lib doesn't have built-in compression levels
       // We'll optimize what we can
       
@@ -114,7 +113,7 @@ export default function PDFScan() {
       const ratio = ((originalSize - savedSize) / originalSize * 100).toFixed(1);
       
       if (savedSize < originalSize) {
-        setSuccess(`Scaned from ${(originalSize / 1024).toFixed(1)} KB to ${(savedSize / 1024).toFixed(1)} KB (${ratio}% smaller)`);
+        setSuccess(`Compressed from ${(originalSize / 1024).toFixed(1)} KB to ${(savedSize / 1024).toFixed(1)} KB (${ratio}% smaller)`);
       } else {
         setSuccess(`File already optimized. Size: ${(savedSize / 1024).toFixed(1)} KB`);
       }
@@ -127,7 +126,7 @@ export default function PDFScan() {
     }
   }, [pdfFile, removeImages, flattenAnnotations]);
 
-  const downloadScaned = useCallback(() => {
+  const downloadCompressed = useCallback(() => {
     if (!outputUrl || !pdfFile) return;
     
     const link = document.createElement("a");
@@ -155,20 +154,19 @@ export default function PDFScan() {
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white/90 p-4 md:p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
-            <Scan className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
-            PDF Scanor
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">
-            Scan PDF files to reduce file size
-          </p>
-        </header>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <header className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
+          <Minimize2 className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
+          PDF Compressor
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
+          Compress PDF files to reduce file size
+        </p>
+      </header>
 
         {/* Error / Success Messages */}
         {error && (
@@ -234,17 +232,17 @@ export default function PDFScan() {
               </div>
             </div>
 
-            {/* Scanion Settings */}
+            {/* Compression Settings */}
             <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
                 <Settings className="w-4 h-4" />
-                Scanion Settings
+                Compression Settings
               </h3>
               
-              {/* Scanion Level */}
+              {/* Compression Level */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                  Scanion Level
+                  Compression Level
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -254,7 +252,7 @@ export default function PDFScan() {
                   ].map((level) => (
                     <button
                       key={level.value}
-                      onClick={() => setScanionLevel(level.value as "low" | "medium" | "high")}
+                      onClick={() => setCompressionLevel(level.value as "low" | "medium" | "high")}
                       className={`py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
                         compressionLevel === level.value
                           ? "bg-indigo-600 text-white"
@@ -313,15 +311,15 @@ export default function PDFScan() {
                   <>Processing...</>
                 ) : (
                   <>
-                    <Scan className="w-5 h-5" />
-                    Scan PDF
+                    <Minimize2 className="w-5 h-5" />
+                    Compress PDF
                   </>
                 )}
               </button>
 
               {outputUrl && (
                 <button
-                  onClick={downloadScaned}
+                  onClick={downloadCompressed}
                   className="py-3 px-6 bg-emerald-600 dark:bg-emerald-700 hover:bg-emerald-700 dark:hover:bg-emerald-800 text-white rounded-lg font-medium shadow-md shadow-emerald-200 dark:shadow-emerald-600 transition-all flex items-center justify-center gap-2"
                 >
                   <Download className="w-5 h-5" />
@@ -331,7 +329,6 @@ export default function PDFScan() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

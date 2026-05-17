@@ -7,82 +7,110 @@ export type ToolApp = {
   path: string;
   description: string;
   icon: ReactNode;
-  category?: string; // For grouping (e.g., "pdf")
+  new?: boolean;
+  pro?: boolean;
 };
 
-export const TOOL_APPS: ToolApp[] = [
+export type ToolGroup = {
+  id: string;
+  label: string;
+  items: ToolApp[];
+};
+
+export const TOOL_GROUPS: ToolGroup[] = [
   {
-    name: "Encode Decode",
-    path: "/encode-decode",
-    description: "Encode/decode text dalam berbagai format.",
-    icon: <GridIcon />,
+    id: "text",
+    label: "Text Tools",
+    items: [
+      {
+        name: "Encode Decode",
+        path: "/encode-decode",
+        description: "Encode/decode text dalam berbagai format.",
+        icon: <GridIcon />,
+      },
+    ],
   },
   {
-    name: "Generate Certificate",
-    path: "/generate-certificate",
-    description: "Generate sertifikat sederhana dari template.",
-    icon: <FileIcon />,
+    id: "image",
+    label: "Image Tools",
+    items: [
+      {
+        name: "Image Resizer",
+        path: "/image-resize",
+        description: "Resize, rotate, dan konversi gambar.",
+        icon: <Maximize2 />,
+      },
+    ],
   },
   {
-    name: "About Me",
-    path: "/about-me",
-    description: "Profil Opakk (redirect ke opakk.id).",
-    icon: <UserCircleIcon />,
+    id: "pdf",
+    label: "PDF Tools",
+    items: [
+      {
+        name: "PDF Merge",
+        path: "/pdf-merge",
+        description: "Merge beberapa file PDF menjadi satu.",
+        icon: <Merge />,
+      },
+      {
+        name: "PDF Split",
+        path: "/pdf-split",
+        description: "Split PDF menjadi beberapa file.",
+        icon: <Scissors />,
+      },
+      {
+        name: "PDF Compress",
+        path: "/pdf-compress",
+        description: "Compress PDF untuk perkecil ukuran file.",
+        icon: <Scan />,
+      },
+      {
+        name: "PDF Editor",
+        path: "/pdf-editor",
+        description: "Edit PDF: tambah text, gambar, dan bentuk.",
+        icon: <Edit3 />,
+        new: true,
+      },
+      {
+        name: "PDF Embed",
+        path: "/pdf-embed",
+        description: "Sisipkan halaman dari satu PDF ke PDF lain.",
+        icon: <FilePlus />,
+        new: true,
+      },
+      {
+        name: "PDF Enhance",
+        path: "/pdf-enhance",
+        description: "Tingkatkan kualitas PDF scan dengan filter.",
+        icon: <Wand2 />,
+        new: true,
+      },
+    ],
   },
   {
-    name: "Image Resizer",
-    path: "/image-resize",
-    description: "Resize, rotate, dan konversi gambar.",
-    icon: <Maximize2 />,
+    id: "generator",
+    label: "Generators",
+    items: [
+      {
+        name: "Generate Certificate",
+        path: "/generate-certificate",
+        description: "Generate sertifikat sederhana dari template.",
+        icon: <FileIcon />,
+      },
+    ],
   },
   {
-    name: "PDF Tools",
-    path: "#",
-    description: "Kumpulan tools untuk PDF",
-    icon: <FileIcon />,
-    category: "pdf",
+    id: "info",
+    label: "Info",
+    items: [
+      {
+        name: "About Me",
+        path: "/about-me",
+        description: "Profil Opakk (redirect ke opakk.id).",
+        icon: <UserCircleIcon />,
+      },
+    ],
   },
 ];
 
-// PDF Tools submenu items
-export const PDF_TOOLS = [
-  {
-    name: "PDF Merge",
-    path: "/pdf-merge",
-    description: "Merge beberapa file PDF menjadi satu.",
-    icon: <Merge />,
-  },
-  {
-    name: "PDF Split",
-    path: "/pdf-split",
-    description: "Split PDF menjadi beberapa file.",
-    icon: <Scissors />,
-  },
-  {
-    name: "PDF Compress",
-    path: "/pdf-compress",
-    description: "Compress PDF untuk perkecil ukuran file.",
-    icon: <Scan />,
-  },
-  {
-    name: "PDF Editor",
-    path: "/pdf-editor",
-    description: "Edit PDF: tambah text, gambar, dan bentuk.",
-    icon: <Edit3 />,
-    new: true,
-  },
-  {
-    name: "PDF Embed",
-    path: "/pdf-embed",
-    description: "Sisipkan halaman dari satu PDF ke PDF lain.",
-    icon: <FilePlus />,
-    new: true,
-  },
-  {
-    name: "PDF Enhance",
-    path: "/pdf-enhance",
-    description: "Tingkatkan kualitas PDF scan dengan filter.",
-    icon: <Wand2 />,
-    new: true,
-  },
-];
+export const TOOL_APPS: ToolApp[] = TOOL_GROUPS.flatMap((group) => group.items);

@@ -149,23 +149,22 @@ export default function EncodeDecode() {
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white/90 p-4 md:p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
-            <ShieldCheck className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
-            Secure Payload Decoder
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">
-            Client-side implementation of Go's{" "}
-            <code className="bg-gray-200 dark:bg-gray-800 px-1 rounded text-sm">
-              aes-256-gcm
-            </code>
-          </p>
-        </header>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <header className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
+          <ShieldCheck className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
+          Secure Payload Decoder
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
+          Client-side implementation of Go's{" "}
+          <code className="bg-gray-200 dark:bg-gray-800 px-1 rounded text-sm">
+            aes-256-gcm
+          </code>
+        </p>
+      </header>
 
         {/* Secret Key Input (Global) */}
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 p-6 mb-6 dark:border-gray-800">
@@ -365,7 +364,6 @@ export default function EncodeDecode() {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }

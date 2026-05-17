@@ -202,20 +202,19 @@ export default function ImageResize() {
   }, []);
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white/90 p-4 md:p-8 font-sans">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
-            <Maximize2 className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
-            Image Resizer
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">
-            Resize, rotate, and convert images directly in your browser
-          </p>
-        </header>
+    <div className="max-w-5xl mx-auto">
+      {/* Header */}
+      <header className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
+          <Maximize2 className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
+          Image Resizer
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
+          Resize, rotate, and convert images directly in your browser
+        </p>
+      </header>
 
         {/* Hidden canvas for processing */}
         <canvas ref={canvasRef} className="hidden" />
@@ -537,7 +536,6 @@ export default function ImageResize() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

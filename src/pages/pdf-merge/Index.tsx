@@ -219,20 +219,19 @@ export default function PDFMerge() {
   }, [outputUrl]);
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white/90 p-4 md:p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
-            <Merge className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
-            PDF Merger
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">
-            Merge multiple PDF files into one. Drag and drop to reorder.
-          </p>
-        </header>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <header className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center p-3 bg-indigo-600 dark:bg-indigo-700 rounded-2xl shadow-lg mb-4">
+          <Merge className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white/90">
+          PDF Merger
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
+          Merge multiple PDF files into one. Drag and drop to reorder.
+        </p>
+      </header>
 
         {/* Error / Success Messages */}
         {error && (
@@ -399,7 +398,6 @@ export default function PDFMerge() {
             </button>
           )}
         </div>
-      </div>
     </div>
   );
 }

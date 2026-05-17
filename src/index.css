@@ -745,15 +745,52 @@ span.flatpickr-weekday,
 }
 
 .task {
-  transition: all 0.2s ease; /* Smooth transition for visual effects */
-}
-
-.task {
+  transition: all 0.2s ease;
   border-radius: 0.75rem;
   box-shadow: 0px 1px 3px 0px rgba(16, 24, 40, 0.1),
     0px 1px 2px 0px rgba(16, 24, 40, 0.06);
   opacity: 0.8;
-  cursor: grabbing; /* Changes the cursor to indicate dragging */
+  cursor: grabbing;
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-y-center {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-fade-slide-in {
+  animation: fade-slide-in 200ms ease-out;
+}
+
+.animate-scale-y-center {
+  animation: scale-y-center 200ms ease-out;
+  transform-origin: center;
 }
 
 .custom-calendar .fc-h-event {

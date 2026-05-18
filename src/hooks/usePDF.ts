@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -23,8 +23,6 @@ export function usePDF(): UsePDFReturn {
   const [pageCount, setPageCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const arrayBufferRef = useRef<ArrayBuffer | null>(null);
 
   const loadPDF = useCallback(async (file: File): Promise<boolean> => {
     if (file.type !== "application/pdf") {
@@ -43,11 +41,10 @@ export function usePDF(): UsePDFReturn {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      arrayBufferRef.current = arrayBuffer;
 
       const [pdfLibDoc, pdfJsDocument] = await Promise.all([
-        PDFDocument.load(arrayBuffer),
-        pdfjsLib.getDocument({ data: arrayBuffer }).promise,
+        PDFDocument.load(arrayBuffer.slice(0)),
+        pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise,
       ]);
 
       setPdfDoc(pdfLibDoc);
@@ -121,7 +118,6 @@ export function usePDF(): UsePDFReturn {
     setPdfJsDoc(null);
     setPageCount(0);
     setError(null);
-    arrayBufferRef.current = null;
   }, []);
 
   return {

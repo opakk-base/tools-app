@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { PDFDocument } from "pdf-lib";
+import * as pdfjsLib from "pdfjs-dist";
+import jsPDF from "jspdf";
 import {
   Upload,
   Download,
@@ -7,8 +9,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Minimize2,
-  Settings,
 } from "lucide-react";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 interface PDFInfo {
   id: string;
@@ -18,6 +21,11 @@ interface PDFInfo {
   pageCount: number;
 }
 
+interface Progress {
+  current: number;
+  total: number;
+}
+
 export default function PDFCompress() {
   const [pdfFile, setPdfFile] = useState<PDFInfo | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -25,12 +33,12 @@ export default function PDFCompress() {
   const [_, setOutputSize] = useState<number>(0);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  const [progress, setProgress] = useState<Progress | null>(null);
   
   const [compressionLevel, setCompressionLevel] = useState<"low" | "medium" | "high">("medium");
-  const [removeImages, setRemoveImages] = useState(false);
-  const [flattenAnnotations, setFlattenAnnotations] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const outputUrlRef = useRef<string | null>(null);
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
   const loadPDF = useCallback(async (file: File) => {
@@ -79,43 +87,108 @@ export default function PDFCompress() {
     setIsProcessing(true);
     setError("");
     setSuccess("");
+    setProgress(null);
+
+    if (outputUrlRef.current) {
+      URL.revokeObjectURL(outputUrlRef.current);
+      outputUrlRef.current = null;
+    }
 
     try {
       const arrayBuffer = await pdfFile.file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
       
-      // Compression based on level
-      // Note: pdf-lib doesn't have built-in compression levels
-      // We'll optimize what we can
-      
-      if (removeImages) {
-        // Remove images by replacing with empty
-        // Note: This is a simplified approach - full image removal is complex
-      }
-      
-      if (flattenAnnotations) {
-        // Flatten annotations is complex in pdf-lib
-        // For now we just save with default compression
+      const compressionSettings = {
+        low: { scale: 2.0, quality: 0.92 },
+        medium: { scale: 1.5, quality: 0.75 },
+        high: { scale: 1.0, quality: 0.55 },
+      };
+      const { scale, quality } = compressionSettings[compressionLevel];
+
+      const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      const totalPages = pdfJsDoc.numPages;
+      setProgress({ current: 0, total: totalPages });
+
+      const firstPageForInit = await pdfJsDoc.getPage(1);
+      const firstViewportBase = firstPageForInit.getViewport({ scale: 1 });
+      const firstOrientation = firstViewportBase.width > firstViewportBase.height ? "landscape" : "portrait";
+
+      const pdf = new jsPDF({
+        unit: "pt",
+        format: [firstViewportBase.width, firstViewportBase.height],
+        orientation: firstOrientation,
+      });
+
+      for (let i = 1; i <= totalPages; i++) {
+        setProgress({ current: i, total: totalPages });
+        
+        const page = await pdfJsDoc.getPage(i);
+        const viewportBase = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale });
+        
+        const widthPt = viewportBase.width;
+        const heightPt = viewportBase.height;
+        const orientation = widthPt > heightPt ? "landscape" : "portrait";
+
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          canvas.width = 0;
+          canvas.height = 0;
+          continue;
+        }
+
+        await page.render({
+          canvasContext: ctx,
+          viewport,
+          canvas,
+        }).promise;
+
+        const jpegDataUrl = canvas.toDataURL("image/jpeg", quality);
+        
+        canvas.width = 0;
+        canvas.height = 0;
+
+        if (i > 1) {
+          pdf.addPage([widthPt, heightPt], orientation);
+        }
+        
+        pdf.addImage(jpegDataUrl, "JPEG", 0, 0, widthPt, heightPt, undefined, "FAST");
       }
 
-      // Save with default compression
-      const pdfBytes = await pdfDoc.save();
+      const rasterBlob = pdf.output("blob");
       
-      const uint8Array = new Uint8Array(pdfBytes);
-      const blob = new Blob([uint8Array], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      const pdfLibDoc = await PDFDocument.load(arrayBuffer);
+      const baselineBytes = await pdfLibDoc.save();
+      const baselineBlob = new Blob([new Uint8Array(baselineBytes).buffer], { type: "application/pdf" });
+
+      let finalBlob: Blob;
+      let usedRaster = false;
       
+      if (rasterBlob.size < baselineBlob.size) {
+        finalBlob = rasterBlob;
+        usedRaster = true;
+      } else {
+        finalBlob = baselineBlob;
+        usedRaster = false;
+      }
+
+      const url = URL.createObjectURL(finalBlob);
+      outputUrlRef.current = url;
       setOutputUrl(url);
-      setOutputSize(blob.size);
+      setOutputSize(finalBlob.size);
       
-      const savedSize = blob.size;
+      const savedSize = finalBlob.size;
       const originalSize = pdfFile.originalSize;
       const ratio = ((originalSize - savedSize) / originalSize * 100).toFixed(1);
       
       if (savedSize < originalSize) {
-        setSuccess(`Compressed from ${(originalSize / 1024).toFixed(1)} KB to ${(savedSize / 1024).toFixed(1)} KB (${ratio}% smaller)`);
+        const method = usedRaster ? "Rasterized compression" : "Optimized structure";
+        setSuccess(`${method}: ${(originalSize / 1024).toFixed(1)} KB → ${(savedSize / 1024).toFixed(1)} KB (${ratio}% smaller)`);
       } else {
-        setSuccess(`File already optimized. Size: ${(savedSize / 1024).toFixed(1)} KB`);
+        setSuccess(`File already optimal. Size: ${(savedSize / 1024).toFixed(1)} KB`);
       }
       
     } catch (err) {
@@ -123,8 +196,9 @@ export default function PDFCompress() {
       setError(err instanceof Error ? err.message : "Failed to compress PDF.");
     } finally {
       setIsProcessing(false);
+      setProgress(null);
     }
-  }, [pdfFile, removeImages, flattenAnnotations]);
+  }, [pdfFile, compressionLevel]);
 
   const downloadCompressed = useCallback(() => {
     if (!outputUrl || !pdfFile) return;
@@ -137,11 +211,16 @@ export default function PDFCompress() {
   }, [outputUrl, pdfFile]);
 
   const resetAll = useCallback(() => {
+    if (outputUrlRef.current) {
+      URL.revokeObjectURL(outputUrlRef.current);
+      outputUrlRef.current = null;
+    }
     setPdfFile(null);
     setOutputUrl(null);
     setOutputSize(0);
     setError("");
     setSuccess("");
+    setProgress(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -234,68 +313,33 @@ export default function PDFCompress() {
 
             {/* Compression Settings */}
             <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Compression Settings
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
+                Compression Level
               </h3>
               
-              {/* Compression Level */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                  Compression Level
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "low", label: "Low", desc: "Best quality" },
-                    { value: "medium", label: "Medium", desc: "Balanced" },
-                    { value: "high", label: "High", desc: "Smallest size" },
-                  ].map((level) => (
-                    <button
-                      key={level.value}
-                      onClick={() => setCompressionLevel(level.value as "low" | "medium" | "high")}
-                      className={`py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                        compressionLevel === level.value
-                          ? "bg-indigo-600 text-white"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      {level.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "low", label: "Low", desc: "Best quality" },
+                  { value: "medium", label: "Medium", desc: "Balanced" },
+                  { value: "high", label: "High", desc: "Smallest size" },
+                ].map((level) => (
+                  <button
+                    key={level.value}
+                    onClick={() => setCompressionLevel(level.value as "low" | "medium" | "high")}
+                    className={`py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      compressionLevel === level.value
+                        ? "bg-indigo-600 text-white"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {level.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Additional Options */}
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={removeImages}
-                    onChange={(e) => setRemoveImages(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-200">
-                    Remove images (will significantly reduce quality)
-                  </span>
-                </label>
-                
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={flattenAnnotations}
-                    onChange={(e) => setFlattenAnnotations(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-200">
-                    Flatten annotations
-                  </span>
-                </label>
-              </div>
-
-              {/* Info */}
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-sm text-blue-700 dark:text-blue-200">
-                  💡 Note: Full PDF compression requires server-side processing. This tool uses basic client-side optimization.
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <p className="text-sm text-amber-700 dark:text-amber-200">
+                  ⚠️ Note: Compressed PDF converts text to images. Text won&apos;t be selectable, searchable, or copyable in the result.
                 </p>
               </div>
             </div>
@@ -307,7 +351,9 @@ export default function PDFCompress() {
                 disabled={isProcessing}
                 className="flex-1 py-3 bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-700 dark:hover:bg-indigo-800 text-white rounded-lg font-medium shadow-md shadow-indigo-200 dark:shadow-indigo-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? (
+                {isProcessing && progress ? (
+                  <>Compressing page {progress.current} of {progress.total}...</>
+                ) : isProcessing ? (
                   <>Processing...</>
                 ) : (
                   <>

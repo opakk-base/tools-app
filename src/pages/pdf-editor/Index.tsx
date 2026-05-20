@@ -14,11 +14,19 @@ import {
   Circle,
   Minus,
   MousePointer,
+  Hand,
   Undo2,
   Redo2,
   Trash2,
+  ChevronsUp,
+  ChevronUp,
+  ChevronDown,
+  ChevronsDown,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import PDFUploadZone from "../../components/pdf/PDFUploadZone";
+import LayerPanel from "../../components/pdf/LayerPanel";
 import type {
   Annotation,
   ToolType,
@@ -31,11 +39,25 @@ import {
   DEFAULT_TEXT_PROPS,
   DEFAULT_SHAPE_PROPS,
 } from "./types";
+import {
+  bringToFront as bringToFrontUtil,
+  sendToBack as sendToBackUtil,
+  bringForward as bringForwardUtil,
+  sendBackward as sendBackwardUtil,
+  reorder as reorderUtil,
+  canBringToFront,
+  canSendToBack,
+  canBringForward,
+  canSendBackward,
+} from "./layerUtils";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ANNOTATION_Z_INDEX = 1000;
+const BASE_SCALE = 1.5;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4.0;
+const ZOOM_STEP = 0.25;
 
 export default function PDFEditor() {
   const [file, setFile] = useState<File | null>(null);
@@ -44,6 +66,10 @@ export default function PDFEditor() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [zoom, setZoom] = useState(1.0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isSpaceDown, setIsSpaceDown] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   
   const [selectedTool, setSelectedTool] = useState<ToolType>("select");
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
@@ -55,6 +81,8 @@ export default function PDFEditor() {
   const [shapeProps, setShapeProps] = useState(DEFAULT_SHAPE_PROPS);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportElRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
@@ -65,6 +93,10 @@ export default function PDFEditor() {
   const dragStart = useRef({ x: 0, y: 0 });
   const resizeHandle = useRef<string>("");
   const annotationStart = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const previousToolRef = useRef<ToolType>("select");
+
+  const isPanMode = selectedTool === "hand" || isSpaceDown;
 
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -85,6 +117,8 @@ export default function PDFEditor() {
     setAnnotations({});
     setHistory({});
     setHistoryIndex({});
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
 
     try {
       const arrayBuffer = await selectedFile.arrayBuffer();
@@ -102,30 +136,30 @@ export default function PDFEditor() {
 
     const pdf = pdfDocRef.current;
     const page = await pdf.getPage(pageNumber);
-    const scale = 1.5;
-    const viewport = page.getViewport({ scale });
+    const baseViewport = page.getViewport({ scale: BASE_SCALE });
+    const renderViewport = page.getViewport({ scale: BASE_SCALE * zoom });
 
-    viewportRef.current = { width: viewport.width, height: viewport.height, scale };
+    viewportRef.current = { width: baseViewport.width, height: baseViewport.height, scale: BASE_SCALE };
 
     const canvas = canvasRef.current;
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    canvas.width = renderViewport.width;
+    canvas.height = renderViewport.height;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     await page.render({
       canvasContext: ctx,
-      viewport,
+      viewport: renderViewport,
       canvas,
     }).promise;
-  }, []);
+  }, [zoom]);
 
   useEffect(() => {
     if (pdfDocRef.current && pageCount > 0) {
       renderPage(currentPage);
     }
-  }, [currentPage, renderPage, pageCount]);
+  }, [currentPage, renderPage, pageCount, zoom]);
 
   const getCurrentPageAnnotations = (): Annotation[] => {
     return annotations[currentPage] || [];
@@ -161,6 +195,175 @@ export default function PDFEditor() {
     setSelectedAnnotation(null);
   };
 
+  const handleBringToFront = () => {
+    if (!selectedAnnotation) return;
+    const pageAnnotations = getCurrentPageAnnotations();
+    const newAnnotations = bringToFrontUtil(pageAnnotations, selectedAnnotation);
+    setAnnotations((prev) => ({ ...prev, [currentPage]: newAnnotations }));
+    saveToHistory(currentPage, newAnnotations);
+  };
+
+  const handleSendToBack = () => {
+    if (!selectedAnnotation) return;
+    const pageAnnotations = getCurrentPageAnnotations();
+    const newAnnotations = sendToBackUtil(pageAnnotations, selectedAnnotation);
+    setAnnotations((prev) => ({ ...prev, [currentPage]: newAnnotations }));
+    saveToHistory(currentPage, newAnnotations);
+  };
+
+  const handleBringForward = () => {
+    if (!selectedAnnotation) return;
+    const pageAnnotations = getCurrentPageAnnotations();
+    const newAnnotations = bringForwardUtil(pageAnnotations, selectedAnnotation);
+    setAnnotations((prev) => ({ ...prev, [currentPage]: newAnnotations }));
+    saveToHistory(currentPage, newAnnotations);
+  };
+
+  const handleSendBackward = () => {
+    if (!selectedAnnotation) return;
+    const pageAnnotations = getCurrentPageAnnotations();
+    const newAnnotations = sendBackwardUtil(pageAnnotations, selectedAnnotation);
+    setAnnotations((prev) => ({ ...prev, [currentPage]: newAnnotations }));
+    saveToHistory(currentPage, newAnnotations);
+  };
+
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+    const pageAnnotations = getCurrentPageAnnotations();
+    const newAnnotations = reorderUtil(pageAnnotations, fromIndex, toIndex);
+    setAnnotations((prev) => ({ ...prev, [currentPage]: newAnnotations }));
+    saveToHistory(currentPage, newAnnotations);
+  };
+
+  const toggleAnnotationVisibility = (id: string) => {
+    const annotation = getCurrentPageAnnotations().find((a) => a.id === id);
+    if (!annotation) return;
+    updateAnnotation(id, { visible: annotation.visible === false ? true : false });
+  };
+
+  const applyZoom = useCallback((nextZoom: number, anchorX?: number, anchorY?: number) => {
+    const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, +nextZoom.toFixed(2)));
+    setZoom((prevZoom) => {
+      if (clamped === prevZoom) return prevZoom;
+      const rect = viewportElRef.current?.getBoundingClientRect();
+      const cx = anchorX ?? (rect ? rect.width / 2 : 0);
+      const cy = anchorY ?? (rect ? rect.height / 2 : 0);
+      const k = clamped / prevZoom;
+      setPan((prevPan) => ({
+        x: cx - k * (cx - prevPan.x),
+        y: cy - k * (cy - prevPan.y),
+      }));
+      return clamped;
+    });
+  }, []);
+
+  const zoomIn = () => applyZoom(zoom + ZOOM_STEP);
+  const zoomOut = () => applyZoom(zoom - ZOOM_STEP);
+  const resetZoom = () => {
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
+  };
+
+  useEffect(() => {
+    if (!file) return;
+    const isEditableTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        el.isContentEditable
+      );
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod) {
+        if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          zoomIn();
+        } else if (e.key === "-") {
+          e.preventDefault();
+          zoomOut();
+        } else if (e.key === "0") {
+          e.preventDefault();
+          resetZoom();
+        }
+        return;
+      }
+      if (isEditableTarget(e.target)) return;
+      if (e.code === "Space") {
+        if (!e.repeat && !isSpaceDown) {
+          previousToolRef.current = selectedTool;
+          setIsSpaceDown(true);
+        }
+        e.preventDefault();
+      } else if (e.key === "h" || e.key === "H") {
+        setSelectedTool("hand");
+      } else if (e.key === "v" || e.key === "V") {
+        setSelectedTool("select");
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpaceDown(false);
+      }
+    };
+    const onBlur = () => {
+      setIsSpaceDown(false);
+      setIsPanning(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [file, zoom, isSpaceDown, selectedTool]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const onMove = (e: MouseEvent) => {
+      setPan({
+        x: panStart.current.panX + (e.clientX - panStart.current.x),
+        y: panStart.current.panY + (e.clientY - panStart.current.y),
+      });
+    };
+    const onUp = () => setIsPanning(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isPanning]);
+
+  const handleViewportMouseDown = (e: React.MouseEvent) => {
+    if (!isPanMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+    setIsPanning(true);
+  };
+
+  const handleViewportWheel = (e: React.WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const rect = viewportElRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const direction = e.deltaY < 0 ? 1 : -1;
+    applyZoom(zoom + direction * ZOOM_STEP, cx, cy);
+  };
+
   const undo = () => {
     const idx = historyIndex[currentPage] || 0;
     if (idx <= 0) return;
@@ -188,10 +391,11 @@ export default function PDFEditor() {
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!overlayRef.current || !viewportRef.current) return;
+    if (isPanMode || isPanning) return;
 
     const rect = overlayRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
 
     if (selectedTool === "select") {
       const clicked = getCurrentPageAnnotations().find((a) => {
@@ -267,6 +471,7 @@ export default function PDFEditor() {
   };
 
   const handleMouseDown = (e: React.MouseEvent, annotationId: string, handle?: string) => {
+    if (isPanMode) return;
     e.stopPropagation();
     
     if (handle) {
@@ -288,8 +493,8 @@ export default function PDFEditor() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!selectedAnnotation) return;
 
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
+    const dx = (e.clientX - dragStart.current.x) / zoom;
+    const dy = (e.clientY - dragStart.current.y) / zoom;
 
     if (isDragging.current) {
       updateAnnotation(selectedAnnotation, {
@@ -354,6 +559,7 @@ export default function PDFEditor() {
         if (!ctx) continue;
 
         for (const annotation of pageAnnotations) {
+          if (annotation.visible === false) continue;
           const scaleX = (pageWidth * scale) / (viewportRef.current?.width || 1);
           const scaleY = (pageHeight * scale) / (viewportRef.current?.height || 1);
 
@@ -439,6 +645,7 @@ export default function PDFEditor() {
     if (page >= 1 && page <= pageCount) {
       setCurrentPage(page);
       setSelectedAnnotation(null);
+      setPan({ x: 0, y: 0 });
     }
   };
 
@@ -479,15 +686,26 @@ export default function PDFEditor() {
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 space-y-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">Tools</h3>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => setSelectedTool("select")}
                   className={`p-3 rounded-lg flex flex-col items-center gap-1 transition-all ${
                     selectedTool === "select" ? "bg-indigo-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
                   }`}
+                  title="Select (V)"
                 >
                   <MousePointer className="w-5 h-5" />
                   <span className="text-xs">Select</span>
+                </button>
+                <button
+                  onClick={() => setSelectedTool("hand")}
+                  className={`p-3 rounded-lg flex flex-col items-center gap-1 transition-all ${
+                    selectedTool === "hand" ? "bg-indigo-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+                  }`}
+                  title="Hand / Pan (H or hold Space)"
+                >
+                  <Hand className="w-5 h-5" />
+                  <span className="text-xs">Pan</span>
                 </button>
                 <button
                   onClick={() => setSelectedTool("text")}
@@ -673,63 +891,176 @@ export default function PDFEditor() {
                 </button>
               </div>
             </div>
+
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Layer</h3>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleSendToBack}
+                  disabled={!selectedAnnotation || !canSendToBack(getCurrentPageAnnotations(), selectedAnnotation)}
+                  className="flex-1 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  title="Send to Back"
+                >
+                  <ChevronsDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleSendBackward}
+                  disabled={!selectedAnnotation || !canSendBackward(getCurrentPageAnnotations(), selectedAnnotation)}
+                  className="flex-1 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  title="Send Backward"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleBringForward}
+                  disabled={!selectedAnnotation || !canBringForward(getCurrentPageAnnotations(), selectedAnnotation)}
+                  className="flex-1 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  title="Bring Forward"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleBringToFront}
+                  disabled={!selectedAnnotation || !canBringToFront(getCurrentPageAnnotations(), selectedAnnotation)}
+                  className="flex-1 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  title="Bring to Front"
+                >
+                  <ChevronsUp className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 space-y-3">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Layers</h3>
+              <LayerPanel
+                annotations={getCurrentPageAnnotations()}
+                selectedId={selectedAnnotation}
+                onSelect={setSelectedAnnotation}
+                onReorder={handleReorder}
+                onToggleVisibility={toggleAnnotationVisibility}
+                onDelete={deleteAnnotation}
+              />
+            </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800">
-              <button
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === pageCount}
+                  className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
               <span className="text-gray-700 dark:text-gray-200">
                 Page {currentPage} of {pageCount}
               </span>
-              <button
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === pageCount}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={zoomOut}
+                  disabled={zoom <= MIN_ZOOM}
+                  className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                  title="Zoom Out (Ctrl/Cmd -)"
+                >
+                  <ZoomOut className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={resetZoom}
+                  className="px-2 py-1 min-w-[60px] text-center text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                  title="Reset Zoom (Ctrl/Cmd 0)"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  onClick={zoomIn}
+                  disabled={zoom >= MAX_ZOOM}
+                  className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                  title="Zoom In (Ctrl/Cmd +)"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div
               ref={containerRef}
-              className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-auto"
-              style={{ minHeight: "500px" }}
+              className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
             >
               <div
-                ref={overlayRef}
-                onClick={handleCanvasClick}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                className="relative inline-block"
-                style={{ cursor: selectedTool === "select" ? "default" : "crosshair" }}
+                ref={viewportElRef}
+                onMouseDown={handleViewportMouseDown}
+                onWheel={handleViewportWheel}
+                className="relative w-full overflow-hidden select-none"
+                style={{
+                  height: "80vh",
+                  minHeight: "500px",
+                  cursor: isPanning
+                    ? "grabbing"
+                    : isPanMode
+                    ? "grab"
+                    : "default",
+                  backgroundImage:
+                    "linear-gradient(45deg, rgba(0,0,0,0.04) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.04) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.04) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.04) 75%)",
+                  backgroundSize: "20px 20px",
+                  backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+                }}
               >
-                <canvas ref={canvasRef} className="block" />
+                <div
+                  ref={contentRef}
+                  className="absolute top-0 left-0"
+                  style={{
+                    transform: `translate(${pan.x}px, ${pan.y}px)`,
+                    transformOrigin: "0 0",
+                  }}
+                >
+                  <div
+                    ref={overlayRef}
+                    onClick={handleCanvasClick}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    className="relative inline-block"
+                    style={{
+                      cursor: isPanning
+                        ? "grabbing"
+                        : isPanMode
+                        ? "grab"
+                        : selectedTool === "select"
+                        ? "default"
+                        : "crosshair",
+                      pointerEvents: isPanMode || isPanning ? "none" : "auto",
+                    }}
+                  >
+                    <canvas ref={canvasRef} className="block" />
                 
-                {getCurrentPageAnnotations().map((annotation) => (
+                {getCurrentPageAnnotations().map((annotation) => {
+                  if (annotation.visible === false) return null;
+                  return (
                   <div
                     key={annotation.id}
                     onMouseDown={(e) => handleMouseDown(e, annotation.id)}
                     className={`absolute ${selectedAnnotation === annotation.id ? "ring-2 ring-indigo-500" : ""}`}
                     style={{
-                      left: annotation.x,
-                      top: annotation.y,
-                      width: annotation.width,
-                      height: annotation.type === "line" ? 4 : annotation.height,
-                      zIndex: ANNOTATION_Z_INDEX,
+                      left: annotation.x * zoom,
+                      top: annotation.y * zoom,
+                      width: annotation.width * zoom,
+                      height: (annotation.type === "line" ? 4 : annotation.height) * zoom,
                     }}
                   >
                     {annotation.type === "text" && (
                       <div
                         style={{
                           fontFamily: annotation.fontFamily,
-                          fontSize: annotation.fontSize,
+                          fontSize: annotation.fontSize * zoom,
                           color: annotation.color,
                           fontWeight: annotation.bold ? "bold" : "normal",
                           fontStyle: annotation.italic ? "italic" : "normal",
@@ -753,7 +1084,7 @@ export default function PDFEditor() {
                         className="w-full h-full"
                         style={{
                           backgroundColor: annotation.fillColor,
-                          border: `${annotation.borderWidth}px solid ${annotation.borderColor}`,
+                          border: `${annotation.borderWidth * zoom}px solid ${annotation.borderColor}`,
                         }}
                       />
                     )}
@@ -762,7 +1093,7 @@ export default function PDFEditor() {
                         className="w-full h-full rounded-full"
                         style={{
                           backgroundColor: annotation.fillColor,
-                          border: `${annotation.borderWidth}px solid ${annotation.borderColor}`,
+                          border: `${annotation.borderWidth * zoom}px solid ${annotation.borderColor}`,
                         }}
                       />
                     )}
@@ -770,7 +1101,7 @@ export default function PDFEditor() {
                       <div
                         className="w-full"
                         style={{
-                          height: annotation.borderWidth,
+                          height: annotation.borderWidth * zoom,
                           backgroundColor: annotation.borderColor,
                         }}
                       />
@@ -785,7 +1116,10 @@ export default function PDFEditor() {
                       </>
                     )}
                   </div>
-                ))}
+                  );
+                })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -811,6 +1145,8 @@ export default function PDFEditor() {
                   setPageCount(0);
                   setAnnotations({});
                   setSelectedAnnotation(null);
+                  setZoom(1.0);
+                  setPan({ x: 0, y: 0 });
                 }}
                 className="py-3 px-6 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium transition-all"
               >
@@ -825,12 +1161,16 @@ export default function PDFEditor() {
         <h3 className="font-semibold text-gray-900 dark:text-white mb-4">How to use:</h3>
         <ol className="space-y-2 text-gray-600 dark:text-gray-400 text-sm">
           <li>1. Upload your PDF file (max 10MB)</li>
-          <li>2. Select a tool: Select, Text, Image, Rectangle, Circle, or Line</li>
+          <li>2. Select a tool: Select, Pan, Text, Image, Rectangle, Circle, or Line</li>
           <li>3. Click on the PDF to add annotations</li>
           <li>4. Drag to move, use handles to resize</li>
           <li>5. Use properties panel to customize</li>
-          <li>6. Navigate pages with arrow buttons</li>
-          <li>7. Click "Export PDF" to download</li>
+          <li>6. Use Layer buttons to change annotation stacking order</li>
+          <li>7. Use Layers panel to manage visibility and reorder annotations</li>
+          <li>8. Pan the canvas with the Hand tool, or hold Space and drag (V/H to switch tools)</li>
+          <li>9. Zoom with the toolbar buttons, Ctrl/Cmd +/- /0, or Ctrl/Cmd + mouse wheel (zooms toward the cursor)</li>
+          <li>10. Navigate pages with arrow buttons</li>
+          <li>11. Click "Export PDF" to download</li>
         </ol>
       </div>
     </div>

@@ -1,4 +1,4 @@
-export type ToolType = "select" | "text" | "image" | "rectangle" | "circle" | "line";
+export type ToolType = "select" | "hand" | "text" | "image" | "rectangle" | "circle" | "line";
 
 export interface BaseAnnotation {
   id: string;
@@ -8,6 +8,8 @@ export interface BaseAnnotation {
   width: number;
   height: number;
   rotation: number;
+  name?: string;
+  visible?: boolean;
 }
 
 export interface TextAnnotation extends BaseAnnotation {
